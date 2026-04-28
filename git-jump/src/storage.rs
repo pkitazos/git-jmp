@@ -110,7 +110,7 @@ fn create_backup(data_file: &Path) -> Result<()> {
 }
 
 fn save_branches_jump_data(data_file: &Path, jump_data: &BranchCollection) -> Result<()> {
-    let file = File::open(data_file)?;
+    let file = File::create(data_file)?;
     let writer = BufWriter::new(file);
     serde_json::to_writer(writer, &jump_data).context("Failed to write serialized branch data")?;
     Ok(())
