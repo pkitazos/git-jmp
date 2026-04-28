@@ -9,10 +9,10 @@ pub struct GitDirs {
 }
 
 pub fn locate_git_repo_dirs() -> Result<GitDirs> {
-    let stdout = run_git_cmd(&["rev-parse", "--path-format=absolute", "--git-common-dir"])?;
+    let stdout = git_command("rev-parse", &["--path-format=absolute", "--git-common-dir"])?;
     let main_worktree = PathBuf::from(stdout);
 
-    let stdout = run_git_cmd(&["rev-parse", "--show-toplevel"])?;
+    let stdout = git_command("rev-parse", &["--show-toplevel"])?;
     let active_worktree = PathBuf::from(stdout);
 
     Ok(GitDirs {
@@ -22,10 +22,10 @@ pub fn locate_git_repo_dirs() -> Result<GitDirs> {
 }
 
 pub fn read_raw_git_branches() -> Result<Vec<String>> {
-    let branches = run_git_cmd(&["branch", "--format=%(refname:short)"])?;
+    let branches = git_command("branch", &["--format=%(refname:short)"])?;
 
     let branches: Vec<String> = branches
-        .split("\n\n")
+        .lines()
         .filter(|s| !s.is_empty())
         .map(|s| s.to_owned())
         .collect();
@@ -33,7 +33,7 @@ pub fn read_raw_git_branches() -> Result<Vec<String>> {
     return Ok(branches);
 }
 pub fn list_worktrees() -> Result<Vec<Worktree>> {
-    let stdout = run_git_cmd(&["worktree", "list", "--porcelain"])?;
+    let stdout = git_command("worktree", &["list", "--porcelain"])?;
 
     stdout
         .split("\n\n")
@@ -46,11 +46,10 @@ pub fn list_worktrees() -> Result<Vec<Worktree>> {
 }
 
 pub fn fetch_remote_branches() -> Result<Vec<String>> {
-    let branches = run_git_cmd(&[
+    let branches = git_command(
         "for-each-ref",
-        "--format='%(refname:lstrip=3)'",
-        "refs/remotes/",
-    ])?;
+        &["--format='%(refname:lstrip=3)'", "refs/remotes/"],
+    )?;
 
     let mut branches: Vec<String> = branches
         .lines()
@@ -112,8 +111,9 @@ fn parse_worktree_entry(lines: &[&str]) -> Result<Worktree> {
     }
 }
 
-fn run_git_cmd(args: &[&str]) -> Result<String> {
+pub fn git_command(sub_cmd: &str, args: &[&str]) -> Result<String> {
     let mut cmd = Command::new("git");
+    cmd.arg(sub_cmd);
     cmd.args(args);
 
     let output = cmd.output()?;

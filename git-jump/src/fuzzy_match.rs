@@ -26,12 +26,12 @@ pub fn fuzzy_match(search: &str, target: &str) -> usize {
 
     let prefix_bonus: usize = matched_indices
         .iter()
-        .map(|idx| (PREFIX_WINDOW - idx).max(0))
+        .map(|&idx| (PREFIX_WINDOW.saturating_sub(idx)))
         .sum();
 
     let continuity_bonus: usize = matched_indices
         .windows(2)
-        .map(|w| (w[0] - w[1]) == 1)
+        .map(|w| (w[1] - w[0]) == 1)
         .count();
 
     prefix_bonus + continuity_bonus

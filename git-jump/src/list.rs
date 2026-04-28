@@ -1,9 +1,9 @@
 use std::collections::HashSet;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{
     fuzzy_match::fuzzy_match,
     types::{Branch, Head, Worktree},
+    utils::now,
 };
 
 // the interactive mode renders the available branches using the following rules:
@@ -44,10 +44,8 @@ pub fn generate_list(
     let mut available_branches: Vec<Branch> = {
         // move checkout out into a separate scope so that it's dropped
         // after we're done constructing the hashset
-        let checked_out: HashSet<&str> = worktrees
-            .iter()
-            .map(|w| get_search_target(&w.head))
-            .collect();
+        let checked_out: HashSet<&str> =
+            worktrees.iter().map(|w| get_head_label(&w.head)).collect();
 
         branches
             .into_iter()
@@ -79,10 +77,7 @@ pub fn generate_list(
         })
         .collect();
 
-    let now = match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(n) => n.as_secs(),
-        Err(_) => u64::MAX,
-    };
+    let now = now();
 
     let head_match_score = match &current_head {
         Head::Detached { sha } => fuzzy_match(search_string, sha),
@@ -113,7 +108,7 @@ pub fn generate_list(
     let mut worktrees: Vec<MatchRecord<Worktree>> = worktrees
         .into_iter()
         .map(|w| {
-            let search_target = get_search_target(&w.head);
+            let search_target = get_head_label(&w.head);
             MatchRecord {
                 match_score: fuzzy_match(search_string, search_target),
                 item: w,
@@ -140,7 +135,7 @@ pub fn generate_list(
     }
 }
 
-fn get_search_target(head: &Head) -> &str {
+pub fn get_head_label(head: &Head) -> &str {
     match head {
         Head::Detached { sha } => sha,
         Head::Branch { name } => name,

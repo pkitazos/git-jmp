@@ -97,7 +97,7 @@ pub struct UIState {
 
 // the Non-interactive mode really just renders things on-demand
 // and may not even need this type at all
-enum Msg {
+pub enum Msg {
     Info(Vec<String>),
     Error { title: String, body: String },
 }
