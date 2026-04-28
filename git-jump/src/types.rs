@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{cmp, path::PathBuf};
 
 // AppConfig is not the best name. This is more like.. runtime info?
 // - cols, rows, max_rows are definitely just runtime information
@@ -23,19 +23,68 @@ pub enum ModifierKey {
     Option,
 }
 
+#[derive(PartialEq, Eq)]
 pub struct Branch {
     pub name: String,
     pub last_switch: u64,
 }
 
+impl PartialOrd for Branch {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Branch {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        other
+            .last_switch
+            .cmp(&self.last_switch)
+            .then_with(|| self.name.cmp(&other.name))
+    }
+}
+
+#[derive(PartialEq, Eq)]
 pub struct Worktree {
     pub dir: PathBuf,
     pub head: Head,
 }
 
+impl PartialOrd for Worktree {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Worktree {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.head
+            .cmp(&other.head)
+            .then_with(|| self.dir.cmp(&other.dir))
+    }
+}
+
+#[derive(PartialEq, Eq)]
 pub enum Head {
     Detached { sha: String },
     Branch { name: String },
+}
+
+impl PartialOrd for Head {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Head {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        match (self, other) {
+            (Head::Detached { sha: a }, Head::Detached { sha: b }) => a.cmp(b),
+            (Head::Detached { sha: _ }, Head::Branch { name: _ }) => cmp::Ordering::Greater,
+            (Head::Branch { name: _ }, Head::Detached { sha: _ }) => cmp::Ordering::Less,
+            (Head::Branch { name: a }, Head::Branch { name: b }) => a.cmp(b),
+        }
+    }
 }
 
 // There are two modes, plain (compute-and-print-and-exit) and interactive (Elm loop)
@@ -44,17 +93,6 @@ pub struct UIState {
     pub highlighted_line_index: usize,
     pub search_string: String,
     pub cursor_position: usize,
-}
-// the interactive mode renders the available branches using the following rules:
-// - render the currently checked out branch / hash first
-// - render all the rest of the branches (nothing detached) that are not checked out in worktrees
-// - render all the rest of the branches that *are* checked out in other linked worktrees
-//
-// So Vec<Either<Head, Branch>> is also not quite honest. Really it should be this struct:
-struct List {
-    head: Head,
-    available_branches: Vec<Branch>,
-    checked_out_branches: Vec<Branch>,
 }
 
 // the Non-interactive mode really just renders things on-demand
