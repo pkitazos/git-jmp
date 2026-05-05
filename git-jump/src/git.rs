@@ -101,7 +101,7 @@ fn parse_worktree_entry(lines: &[&str]) -> Result<Worktree> {
                 sha: sha.to_owned(),
             },
         }),
-        (false, false, None, Some(name), Some(dir)) => Ok(Worktree {
+        (false, false, _, Some(name), Some(dir)) => Ok(Worktree {
             dir,
             head: Head::Branch {
                 name: name.to_owned(),

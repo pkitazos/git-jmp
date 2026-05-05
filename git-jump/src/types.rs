@@ -23,7 +23,7 @@ pub enum ModifierKey {
     Option,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct Branch {
     pub name: String,
     pub last_switch: u64,
@@ -44,7 +44,7 @@ impl Ord for Branch {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct Worktree {
     pub dir: PathBuf,
     pub head: Head,
@@ -64,10 +64,26 @@ impl Ord for Worktree {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum Head {
     Detached { sha: String },
     Branch { name: String },
+}
+
+impl Head {
+    pub fn label(&self) -> &str {
+        match self {
+            Head::Detached { sha } => sha,
+            Head::Branch { name } => name,
+        }
+    }
+
+    pub fn into_label(self) -> String {
+        match self {
+            Head::Detached { sha } => sha,
+            Head::Branch { name } => name,
+        }
+    }
 }
 
 impl PartialOrd for Head {
