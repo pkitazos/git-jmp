@@ -44,8 +44,7 @@ pub fn generate_list(
     let mut available_branches: Vec<Branch> = {
         // move checkout out into a separate scope so that it's dropped
         // after we're done constructing the hashset
-        let checked_out: HashSet<&str> =
-            worktrees.iter().map(|w| get_head_label(&w.head)).collect();
+        let checked_out: HashSet<&str> = worktrees.iter().map(|w| w.head.label()).collect();
 
         branches
             .into_iter()
@@ -107,12 +106,9 @@ pub fn generate_list(
 
     let mut worktrees: Vec<MatchRecord<Worktree>> = worktrees
         .into_iter()
-        .map(|w| {
-            let search_target = get_head_label(&w.head);
-            MatchRecord {
-                match_score: fuzzy_match(search_string, search_target),
-                item: w,
-            }
+        .map(|w| MatchRecord {
+            match_score: fuzzy_match(search_string, w.head.label()),
+            item: w,
         })
         .collect();
 
@@ -132,12 +128,5 @@ pub fn generate_list(
     SearchList::InSearch {
         available,
         worktrees,
-    }
-}
-
-pub fn get_head_label(head: &Head) -> &str {
-    match head {
-        Head::Detached { sha } => sha,
-        Head::Branch { name } => name,
     }
 }
