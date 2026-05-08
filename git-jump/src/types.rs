@@ -1,6 +1,6 @@
 use std::{cmp, path::PathBuf};
 
-use crate::app::InteractiveApp;
+use crate::{app::InteractiveApp, utils::now};
 
 // AppConfig is not the best name. This is more like.. runtime info?
 // - cols, rows, max_rows are definitely just runtime information
@@ -29,6 +29,15 @@ pub enum ModifierKey {
 pub struct Branch {
     pub name: String,
     pub last_switch: u64,
+}
+
+impl Branch {
+    pub fn into_head(self) -> Head {
+        Head::Branch {
+            name: self.name,
+            last_switch: self.last_switch,
+        }
+    }
 }
 
 impl PartialOrd for Branch {
@@ -69,21 +78,28 @@ impl Ord for Worktree {
 #[derive(PartialEq, Eq, Clone)]
 pub enum Head {
     Detached { sha: String },
-    Branch { name: String },
+    Branch { name: String, last_switch: u64 },
 }
 
 impl Head {
     pub fn label(&self) -> &str {
         match self {
             Head::Detached { sha } => sha,
-            Head::Branch { name } => name,
+            Head::Branch { name, .. } => name,
         }
     }
 
     pub fn into_label(self) -> String {
         match self {
             Head::Detached { sha } => sha,
-            Head::Branch { name } => name,
+            Head::Branch { name, .. } => name,
+        }
+    }
+
+    pub fn last_switched(&self) -> u64 {
+        match self {
+            Head::Detached { .. } => now(),
+            Head::Branch { last_switch, .. } => last_switch.to_owned(),
         }
     }
 }
@@ -98,11 +114,30 @@ impl Ord for Head {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         match (self, other) {
             (Head::Detached { sha: a }, Head::Detached { sha: b }) => a.cmp(b),
-            (Head::Detached { sha: _ }, Head::Branch { name: _ }) => cmp::Ordering::Greater,
-            (Head::Branch { name: _ }, Head::Detached { sha: _ }) => cmp::Ordering::Less,
-            (Head::Branch { name: a }, Head::Branch { name: b }) => a.cmp(b),
+            (Head::Detached { .. }, Head::Branch { .. }) => cmp::Ordering::Greater,
+            (Head::Branch { .. }, Head::Detached { .. }) => cmp::Ordering::Less,
+            (
+                Head::Branch {
+                    name: a_name,
+                    last_switch: a_last_switch,
+                },
+                Head::Branch {
+                    name: b_name,
+                    last_switch: b_last_switch,
+                },
+            ) => a_last_switch
+                .cmp(b_last_switch)
+                .then_with(|| a_name.cmp(b_name)),
         }
     }
+}
+
+#[derive(Clone)]
+pub struct RankedSearchList {
+    /// all branches you can jump to that match the search input
+    pub available: Vec<Head>,
+    /// all worktrees that match the search input
+    pub worktrees: Vec<Worktree>,
 }
 
 // the Non-interactive mode really just renders things on-demand

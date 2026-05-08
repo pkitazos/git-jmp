@@ -8,6 +8,7 @@ use std::{
 };
 
 use git_jump::{
+    app::InteractiveApp,
     command::{delete_sub_command, jump_to, list_sub_command, new_sub_command, rename_sub_command},
     git::{GitDirs, list_worktrees, locate_git_repo_dirs, read_raw_git_branches},
     storage::get_and_clean_branches,
@@ -95,7 +96,16 @@ pub fn main() -> Result<()> {
     };
 
     match &cli.into_invocation() {
-        Invocation::Interactive => todo!(),
+        Invocation::Interactive => {
+            let w = state
+                .worktrees
+                .iter()
+                .find(|w| w.dir.eq(&state.active_worktree))
+                .unwrap();
+
+            let app = InteractiveApp::new(w.head.to_owned(), state.branches, state.worktrees);
+            ratatui::run(|terminal| app.run(terminal))?;
+        }
         Invocation::JumpTo(branch) => {
             let _ = jump_to(&state, branch, &[])?;
             // todo: render

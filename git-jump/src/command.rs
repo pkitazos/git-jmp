@@ -1,12 +1,10 @@
-use std::iter;
-
 use anyhow::{Result, anyhow};
 
 use crate::{
     git::{fetch_remote_branches, git_command},
-    list::{SearchList, generate_list},
+    list::{generate_ranked_list, prep_available_branches},
     storage::{delete_jump_data_branch, rename_jump_data_branch, update_branch_last_switch},
-    types::{Head, Model, Msg},
+    types::{Head, Model, Msg, RankedSearchList},
     utils::now,
 };
 
@@ -22,46 +20,12 @@ use crate::{
 // ---
 
 pub fn list_sub_command(state: &Model) -> Result<Msg> {
-    let list = {
-        let current_worktree = state
-            .worktrees
-            .iter()
-            .find(|&w| w.dir.eq(&state.active_worktree))
-            .ok_or(anyhow!("Head should exist"))?;
+    let branch_names = prep_available_branches(&state.branches, &state.worktrees)
+        .iter()
+        .map(|b| b.name.to_owned())
+        .collect();
 
-        let head = current_worktree.head.clone();
-        let branches = state.branches.clone();
-        let worktrees = state.worktrees.clone();
-
-        generate_list(head, branches, worktrees, "")
-    };
-
-    match list {
-        SearchList::Idle {
-            head,
-            available_branches,
-            in_worktrees,
-        } => {
-            let branch_names: Vec<String> = iter::once(head.into_label())
-                .chain(available_branches.into_iter().map(|b| b.name))
-                .chain(in_worktrees.into_iter().map(|w| w.head.into_label()))
-                .collect();
-
-            Ok(Msg::Info(branch_names))
-        }
-        SearchList::InSearch {
-            available,
-            worktrees,
-        } => {
-            let branch_names: Vec<String> = available
-                .into_iter()
-                .map(|h| h.into_label())
-                .chain(worktrees.into_iter().map(|b| b.head.into_label()))
-                .collect();
-
-            Ok(Msg::Info(branch_names))
-        }
-    }
+    Ok(Msg::Info(branch_names))
 }
 
 /// side-effect: update the JumpData file
@@ -123,8 +87,8 @@ pub fn jump_to(state: &Model, target: &str, args: &[&str]) -> Result<Msg> {
 
     if args.is_empty() {
         let stay = match &current_worktree.head {
-            Head::Branch { name } => target.eq(name),
-            Head::Detached { sha: _ } => true,
+            Head::Branch { name, .. } => target.eq(name),
+            Head::Detached { .. } => true,
         };
 
         if stay {
@@ -157,42 +121,29 @@ pub fn jump_to(state: &Model, target: &str, args: &[&str]) -> Result<Msg> {
         }
     }
 
-    let list = {
+    let RankedSearchList { available, .. } = {
         let head = current_worktree.head.clone();
         let branches = state.branches.clone();
         let worktrees = state.worktrees.clone();
 
-        generate_list(head, branches, worktrees, target)
+        generate_ranked_list(&head, &branches, &worktrees, target)
     };
 
-    match list {
-        SearchList::Idle {
-            head: _,
-            available_branches: _,
-            in_worktrees: _,
-        } => return Err(anyhow!("Should not happen?")),
-
-        SearchList::InSearch {
-            available,
-            worktrees: _,
-        } => {
-            if available.is_empty() {
-                return Ok(Msg::Error {
-                    title: "No match".to_string(),
-                    body: format!("{} does not match any branch", target),
-                });
-            }
-
-            return switch_to_list_item(&available[0]);
-        }
+    if available.is_empty() {
+        return Ok(Msg::Error {
+            title: "No match".to_string(),
+            body: format!("{} does not match any branch", target),
+        });
     }
+
+    return switch_to_list_item(&available[0]);
 }
 
 /// side-effect: execute `git switch`
 pub fn switch_to_list_item(head: &Head) -> Result<Msg> {
     match head {
         Head::Detached { sha } => Ok(Msg::Info(vec![format!("Staying on {}", sha)])),
-        Head::Branch { name } => match git_command("switch", &[name]) {
+        Head::Branch { name, .. } => match git_command("switch", &[name]) {
             Ok(msg) => Ok(Msg::Info(vec![msg])),
             Err(msg) => Ok(Msg::Error {
                 title: "Failed to Switch Branch".to_string(),

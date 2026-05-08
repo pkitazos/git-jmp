@@ -1,38 +1,9 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, iter};
 
 use crate::{
     fuzzy_match::fuzzy_match,
-    types::{Branch, Head, Worktree},
-    utils::now,
+    types::{Branch, Head, RankedSearchList, Worktree},
 };
-
-// the interactive mode renders the available branches using the following rules:
-// - render the currently checked out branch / hash first
-// - render all the rest of the branches (nothing detached) that are not checked out in worktrees
-// - render all the rest of the branches that *are* checked out in other linked worktrees
-
-pub enum SearchList {
-    Idle {
-        /// the currently checked out branch
-        head: Head,
-        /// branches you can jump to (does not include currently checked out branch)
-        available_branches: Vec<Branch>,
-        /// branches checked out in linked worktrees
-        in_worktrees: Vec<Worktree>,
-    },
-    InSearch {
-        /// all branches you can jump to that match the search input
-        available: Vec<Head>,
-        /// all worktrees that match the search input
-        worktrees: Vec<Worktree>,
-    },
-}
-
-#[derive(PartialEq, Eq, PartialOrd)]
-struct VisitedHead {
-    head: Head,
-    last_switch: u64,
-}
 
 #[derive(PartialEq, Eq, PartialOrd)]
 struct MatchRecord<T> {
@@ -40,80 +11,57 @@ struct MatchRecord<T> {
     item: T,
 }
 
-pub fn generate_list(
-    current_head: Head,
-    branches: Vec<Branch>,
-    worktrees: Vec<Worktree>,
-    search_string: &str,
-) -> SearchList {
+pub fn prep_available_branches(branches: &[Branch], worktrees: &[Worktree]) -> Vec<Branch> {
     let mut available_branches: Vec<Branch> = {
         // move checkout out into a separate scope so that it's dropped
         // after we're done constructing the hashset
         let checked_out: HashSet<&str> = worktrees.iter().map(|w| w.head.label()).collect();
 
         branches
-            .into_iter()
+            .iter()
             .filter(|b| !checked_out.contains(b.name.as_str()))
+            .cloned()
             .collect()
     };
 
     available_branches.sort();
+    available_branches
+}
 
-    if search_string.is_empty() {
-        let mut in_worktrees = worktrees;
-        in_worktrees.sort();
-
-        return SearchList::Idle {
-            head: current_head,
-            available_branches,
-            in_worktrees,
-        };
-    }
-
-    let mut available: Vec<MatchRecord<VisitedHead>> = available_branches
-        .into_iter()
-        .map(|b| MatchRecord {
-            match_score: fuzzy_match(search_string, &b.name),
-            item: VisitedHead {
-                head: Head::Branch { name: b.name },
-                last_switch: b.last_switch,
-            },
-        })
-        .collect();
-
-    let now = now();
-
-    let head_match_score = match &current_head {
-        Head::Detached { sha } => fuzzy_match(search_string, sha),
-        Head::Branch { name } => fuzzy_match(search_string, name),
-    };
-
-    available.push(MatchRecord {
-        match_score: head_match_score,
-        item: VisitedHead {
-            head: current_head,
-            last_switch: now,
-        },
-    });
+pub fn generate_ranked_list(
+    head: &Head,
+    branches: &[Branch],
+    worktrees: &[Worktree],
+    search_string: &str,
+) -> RankedSearchList {
+    let mut available: Vec<MatchRecord<Head>> = iter::once(MatchRecord {
+        match_score: fuzzy_match(search_string, head.label()),
+        item: head.clone(),
+    })
+    .chain(branches.iter().map(|b| MatchRecord {
+        match_score: fuzzy_match(search_string, &b.name),
+        item: b.to_owned().into_head(),
+    }))
+    .collect();
 
     available.sort_by(|a, b| {
         b.match_score
             .cmp(&a.match_score)
-            .then_with(|| b.item.last_switch.cmp(&a.item.last_switch))
-            .then_with(|| a.item.head.cmp(&b.item.head))
+            .then_with(|| b.item.last_switched().cmp(&a.item.last_switched()))
+            .then_with(|| a.item.label().cmp(&b.item.label()))
     });
 
     let available: Vec<Head> = available
         .into_iter()
         .filter(|r| r.match_score > 0)
-        .map(|r| r.item.head)
+        .map(|r| r.item)
         .collect();
 
     let mut worktrees: Vec<MatchRecord<Worktree>> = worktrees
         .into_iter()
         .map(|w| MatchRecord {
             match_score: fuzzy_match(search_string, w.head.label()),
-            item: w,
+            item: w.clone(),
         })
         .collect();
 
@@ -130,7 +78,7 @@ pub fn generate_list(
         .map(|r| r.item)
         .collect();
 
-    SearchList::InSearch {
+    RankedSearchList {
         available,
         worktrees,
     }

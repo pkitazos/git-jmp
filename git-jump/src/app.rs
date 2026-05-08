@@ -2,8 +2,8 @@ use std::iter;
 
 use crate::{
     input::{next_word_boundary, prev_word_boundary},
-    list::{SearchList, generate_list},
-    types::{Branch, Head, Worktree},
+    list::generate_ranked_list,
+    types::{Branch, Head, RankedSearchList, Worktree},
 };
 use anyhow::Result;
 use crossterm::event::{self, KeyCode, KeyEventKind, KeyModifiers};
@@ -15,36 +15,37 @@ use ratatui::{
     widgets::{List, ListState},
 };
 
-enum SearchListState {
-    Idle {
-        /// the currently checked out branch
-        head: Head,
-        /// branches you can jump to (does not include currently checked out branch)
-        available_branches: Vec<Branch>,
-        /// branches checked out in linked worktrees
-        in_worktrees: Vec<Worktree>,
-    },
-    InSearch {
-        /// non-empty search string
-        search_string: String,
-        /// all branches you can jump to that match the search input
-        available: Vec<Head>,
-        /// all worktrees that match the search input
-        worktrees: Vec<Worktree>,
+pub struct InteractiveApp {
+    pub character_index: usize,
+    pub input_mode: InputMode,
+    pub alert: String,
+
+    /// the currently checked out branch
+    pub head: Head,
+    /// branches you can jump to (does not include currently checked out branch)
+    pub branches: Vec<Branch>,
+    /// branches checked out in linked worktrees
+    pub worktrees: Vec<Worktree>,
+
+    // view state (technically a copy of the source data)
+    pub view: SearchView,
+}
+
+pub enum SearchView {
+    Idle,
+    Filtered {
+        search_string: String, // invariant: non-empty
+        list: RankedSearchList,
     },
 }
 
-pub struct InteractiveApp {
-    pub input: String,
-    /// book keeping
-    pub character_index: usize,
-    pub input_mode: InputMode,
-    /// actual data
-    pub list: SearchList,
-    /// testing new shape
-    // pub data: SearchListState,
-    /// debug
-    pub alert: String,
+impl SearchView {
+    fn search_string(&self) -> &str {
+        match self {
+            SearchView::Idle => "",
+            SearchView::Filtered { search_string, .. } => search_string,
+        }
+    }
 }
 
 pub enum InputMode {
@@ -53,24 +54,21 @@ pub enum InputMode {
 }
 
 impl InteractiveApp {
-    fn new(
-        current_head: Head,
-        branches: Vec<Branch>,
-        worktrees: Vec<Worktree>,
-        search_string: &str,
-    ) -> Self {
+    pub fn new(head: Head, branches: Vec<Branch>, worktrees: Vec<Worktree>) -> Self {
         Self {
-            input: search_string.to_string(),
+            character_index: 0,
             input_mode: InputMode::Normal,
             alert: String::from("no alert"),
-            character_index: 0,
-            list: generate_list(current_head, branches, worktrees, search_string),
+            head,
+            branches,
+            worktrees,
+            view: SearchView::Idle,
         }
     }
 
     fn move_cursor_left_n(&mut self, n: usize) {
         let cursor_moved_left = self.character_index.saturating_sub(n);
-        self.character_index = self.clamp_cursor(cursor_moved_left);
+        self.character_index = self.clamp_cursor(self.view.search_string(), cursor_moved_left);
     }
 
     fn move_cursor_left(&mut self) {
@@ -79,16 +77,33 @@ impl InteractiveApp {
 
     fn move_cursor_right_n(&mut self, n: usize) {
         let cursor_moved_right = self.character_index.saturating_add(n);
-        self.character_index = self.clamp_cursor(cursor_moved_right);
+        self.character_index = self.clamp_cursor(self.view.search_string(), cursor_moved_right);
     }
 
     fn move_cursor_right(&mut self) {
         self.move_cursor_right_n(1);
     }
 
+    fn set_search(&mut self, new_search: String) {
+        self.view = if new_search.is_empty() {
+            SearchView::Idle
+        } else {
+            SearchView::Filtered {
+                list: generate_ranked_list(
+                    &self.head,
+                    &self.branches,
+                    &self.worktrees,
+                    &new_search,
+                ),
+                search_string: new_search,
+            }
+        };
+    }
+
     fn enter_char(&mut self, new_char: char) {
-        let index = self.byte_index();
-        self.input.insert(index, new_char);
+        let mut s = self.view.search_string().to_string();
+        s.insert(self.byte_index(&s), new_char);
+        self.set_search(s);
         self.move_cursor_right();
     }
 
@@ -96,44 +111,33 @@ impl InteractiveApp {
     ///
     /// Since each character in a string can contain multiple bytes, it's necessary to calculate
     /// the byte index based on the index of the character.
-    fn byte_index(&self) -> usize {
-        self.input
-            .char_indices()
+    fn byte_index(&self, s: &str) -> usize {
+        s.char_indices()
             .map(|(i, _)| i)
             .nth(self.character_index)
-            .unwrap_or(self.input.len())
+            .unwrap_or(s.len())
     }
 
     fn delete_char(&mut self) {
-        if self.character_index != 0 {
-            // Method "remove" is not used on the saved text for deleting the selected char.
-            // Reason: Using remove on String works on bytes instead of the chars.
-            // Using remove would require special care because of char boundaries.
-
-            let current_index = self.character_index;
-            let from_left_to_current_index = current_index - 1;
-
-            // Getting all characters before the selected character.
-            let before_char_to_delete = self.input.chars().take(from_left_to_current_index);
-            // Getting all characters after selected character.
-            let after_char_to_delete = self.input.chars().skip(current_index);
-
-            // Put all characters together except the selected one.
-            // By leaving the selected one out, it is forgotten and therefore deleted.
-            self.input = before_char_to_delete.chain(after_char_to_delete).collect();
-            self.move_cursor_left();
+        let s = self.view.search_string();
+        if self.character_index == 0 || s.is_empty() {
+            return;
         }
+        let before = s.chars().take(self.character_index - 1);
+        let after = s.chars().skip(self.character_index);
+        self.set_search(before.chain(after).collect());
+        self.move_cursor_left();
     }
 
-    fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
-        new_cursor_pos.clamp(0, self.input.chars().count())
+    fn clamp_cursor(&self, s: &str, new_cursor_pos: usize) -> usize {
+        new_cursor_pos.clamp(0, s.chars().count())
     }
 
     const fn reset_cursor(&mut self) {
         self.character_index = 0;
     }
 
-    fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+    pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         let mut list_state = ListState::default();
         list_state.select_first();
 
@@ -173,14 +177,17 @@ impl InteractiveApp {
                             // End / end of line
                             (KeyCode::End, KeyModifiers::NONE)
                             | (KeyCode::Char('e'), KeyModifiers::CONTROL) => {
-                                self.character_index = self.input.chars().count();
+                                self.character_index = self.view.search_string().chars().count();
                             }
 
                             // Word left
                             (KeyCode::Left, KeyModifiers::ALT)
                             | (KeyCode::Char('b'), KeyModifiers::ALT) => {
                                 let curr = self.character_index;
-                                let next = prev_word_boundary(&self.input, self.character_index);
+                                let next = prev_word_boundary(
+                                    self.view.search_string(),
+                                    self.character_index,
+                                );
                                 self.character_index = next;
                                 self.alert = format!("move from {} to {}", curr, next)
                             }
@@ -189,7 +196,10 @@ impl InteractiveApp {
                             (KeyCode::Right, KeyModifiers::ALT)
                             | (KeyCode::Char('f'), KeyModifiers::ALT) => {
                                 let curr = self.character_index;
-                                let next = next_word_boundary(&self.input, self.character_index);
+                                let next = next_word_boundary(
+                                    self.view.search_string(),
+                                    self.character_index,
+                                );
                                 self.character_index = next;
                                 self.alert = format!("move from {} to {}", curr, next)
                             }
@@ -204,39 +214,61 @@ impl InteractiveApp {
 
                             // Delete word backward
                             (KeyCode::Backspace, KeyModifiers::ALT) => {
-                                let stop = prev_word_boundary(&self.input, self.character_index);
-                                let before = self.input.chars().take(stop);
-                                let after = self.input.chars().skip(self.character_index);
-                                self.input = before.chain(after).collect();
+                                let stop = prev_word_boundary(
+                                    self.view.search_string(),
+                                    self.character_index,
+                                );
+                                let before = self.view.search_string().chars().take(stop);
+                                let after =
+                                    self.view.search_string().chars().skip(self.character_index);
+                                self.set_search(before.chain(after).collect());
                                 self.character_index = stop;
                             }
 
                             // Delete entire line
                             (KeyCode::Char('w'), KeyModifiers::CONTROL) => {
-                                self.input.clear();
+                                self.set_search("".to_string());
                                 self.reset_cursor();
                             }
 
                             // Delete from cursor to end of line
                             (KeyCode::Char('k'), KeyModifiers::CONTROL) => {
-                                self.input =
-                                    self.input.chars().take(self.character_index).collect();
+                                self.set_search(
+                                    self.view
+                                        .search_string()
+                                        .chars()
+                                        .take(self.character_index)
+                                        .collect(),
+                                );
                             }
 
                             // Delete from cursor to beginning of line
                             (KeyCode::Char('u'), KeyModifiers::CONTROL) => {
-                                self.input =
-                                    self.input.chars().skip(self.character_index).collect();
+                                self.set_search(
+                                    self.view
+                                        .search_string()
+                                        .chars()
+                                        .skip(self.character_index)
+                                        .collect(),
+                                );
                                 self.reset_cursor();
                             }
 
                             // Forward delete
                             (KeyCode::Delete, KeyModifiers::NONE) => {
-                                let count = self.input.chars().count();
+                                let count = self.view.search_string().chars().count();
                                 if self.character_index < count {
-                                    let before = self.input.chars().take(self.character_index);
-                                    let after = self.input.chars().skip(self.character_index + 1);
-                                    self.input = before.chain(after).collect();
+                                    let before = self
+                                        .view
+                                        .search_string()
+                                        .chars()
+                                        .take(self.character_index);
+                                    let after = self
+                                        .view
+                                        .search_string()
+                                        .chars()
+                                        .skip(self.character_index + 1);
+                                    self.set_search(before.chain(after).collect());
                                 }
                             }
 
@@ -293,14 +325,7 @@ impl InteractiveApp {
 
         self.render_search_row(frame, search_area);
 
-        render_scrollable_list(
-            frame,
-            list,
-            list_state,
-            self.current_head.clone(),
-            self.branches.clone(),
-            self.worktrees.clone(),
-        );
+        self.render_scrollable_list(frame, list, list_state);
 
         self.render_status(frame, status_area);
     }
@@ -316,10 +341,10 @@ impl InteractiveApp {
 
         let [_, search_area, hint_area] = area.layout(&search_layout);
 
-        let search_string = if self.input.is_empty() {
+        let search_string = if self.view.search_string().is_empty() {
             "Search"
         } else {
-            &self.input
+            &self.view.search_string()
         };
 
         let cursor_style = match self.input_mode {
@@ -360,74 +385,78 @@ impl InteractiveApp {
             area,
         );
     }
-}
 
-fn render_scrollable_list(
-    frame: &mut Frame,
-    area: Rect,
-    list_state: &mut ListState,
-    current_head: String,
-    branches: Vec<String>,
-    worktrees: Vec<Worktree>,
-) {
-    let longest_branch_len = branches.iter().map(|x| x.len()).max().unwrap_or(0);
-    let longest_worktree_name_len = worktrees
-        .iter()
-        .map(|x| x.head.into_label().len())
-        .max()
-        .unwrap_or(0);
-    let longest_entry_len = current_head
-        .len()
-        .max(longest_branch_len)
-        .max(longest_worktree_name_len);
+    fn render_scrollable_list(&self, frame: &mut Frame, area: Rect, list_state: &mut ListState) {
+        let longest_branch_len = self
+            .branches
+            .iter()
+            .map(|x| x.name.len())
+            .max()
+            .unwrap_or(0);
+        let longest_worktree_name_len = self
+            .worktrees
+            .iter()
+            .map(|x| x.head.label().len())
+            .max()
+            .unwrap_or(0);
+        let longest_entry_len = self
+            .head
+            .label()
+            .len()
+            .max(longest_branch_len)
+            .max(longest_worktree_name_len);
+        let longest_worktree_dir_len = self
+            .worktrees
+            .iter()
+            .map(|x| x.dir.to_str().unwrap().len())
+            .max()
+            .unwrap_or(0);
 
-    let longest_worktree_dir_len = worktrees
-        .iter()
-        .map(|x| x.dir.to_str().unwrap().len())
-        .max()
-        .unwrap_or(0);
+        let cur_span = Span::from(self.head.label()).bg(Color::Cyan);
+        let current_head_line = Line::from(vec!["   ".into(), cur_span]);
 
-    let cur_span = Span::from(current_head).bg(Color::Cyan);
-    let current_head_line = Line::from(vec!["   ".into(), cur_span]);
+        let branch_lines: Vec<Line> = self
+            .branches
+            .iter()
+            .enumerate()
+            .map(|(i, b)| {
+                Line::from(vec![
+                    Span::from(format!(" {i} ")).bg(Color::DarkGray),
+                    Span::from(format!("{:width$}", b.name, width = longest_entry_len))
+                        .bg(Color::White),
+                ])
+            })
+            .collect();
 
-    let branch_lines: Vec<Line> = branches
-        .iter()
-        .enumerate()
-        .map(|(i, branch)| {
-            Line::from(vec![
-                Span::from(format!(" {i} ")).bg(Color::DarkGray),
-                Span::from(format!("{branch:width$}", width = longest_entry_len)).bg(Color::White),
-            ])
-        })
-        .collect();
+        let worktree_lines: Vec<Line> = self
+            .worktrees
+            .iter()
+            .map(|w| {
+                Line::from(vec![
+                    "   ".into(),
+                    Span::from(format!(
+                        "{:width$}",
+                        w.head.label(),
+                        width = longest_entry_len
+                    ))
+                    .bg(Color::Blue),
+                    Span::from(format!(
+                        "  {:width$}",
+                        w.dir.to_string_lossy(),
+                        width = longest_worktree_dir_len
+                    ))
+                    .bg(Color::DarkGray),
+                ])
+            })
+            .collect();
 
-    let worktree_lines: Vec<Line> = worktrees
-        .iter()
-        .map(|worktree| {
-            Line::from(vec![
-                "   ".into(),
-                Span::from(format!(
-                    "{:width$}",
-                    worktree.head.into_label(),
-                    width = longest_entry_len
-                ))
-                .bg(Color::Blue),
-                Span::from(format!(
-                    "  {:width$}",
-                    worktree.dir.to_str().unwrap(),
-                    width = longest_worktree_dir_len
-                ))
-                .bg(Color::DarkGray),
-            ])
-        })
-        .collect();
+        let items: Vec<_> = iter::once(current_head_line)
+            .chain(branch_lines)
+            .chain(worktree_lines)
+            .collect();
 
-    let items: Vec<_> = iter::once(current_head_line)
-        .chain(branch_lines)
-        .chain(worktree_lines)
-        .collect();
+        let list = List::new(items).highlight_style(Style::new().bg(Color::LightGreen));
 
-    let list = List::new(items).highlight_style(Style::new().bg(Color::LightGreen));
-
-    frame.render_stateful_widget(list, area, list_state);
+        frame.render_stateful_widget(list, area, list_state);
+    }
 }
