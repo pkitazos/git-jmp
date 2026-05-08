@@ -1,9 +1,10 @@
-use std::iter;
+use std::{iter, usize};
 
 use crate::{
     input::{next_word_boundary, prev_word_boundary},
     list::generate_ranked_list,
     types::{Branch, Head, RankedSearchList, Worktree},
+    ui::BRANCH_INDEX_PADD,
 };
 use anyhow::Result;
 use crossterm::event::{self, KeyCode, KeyEventKind, KeyModifiers};
@@ -387,76 +388,97 @@ impl InteractiveApp {
     }
 
     fn render_scrollable_list(&self, frame: &mut Frame, area: Rect, list_state: &mut ListState) {
-        let longest_branch_len = self
+        let longest_branch_name = self
             .branches
             .iter()
             .map(|x| x.name.len())
             .max()
             .unwrap_or(0);
-        let longest_worktree_name_len = self
+        let longest_worktree_name = self
             .worktrees
             .iter()
             .map(|x| x.head.label().len())
             .max()
             .unwrap_or(0);
-        let longest_entry_len = self
+        let longest_entry = self
             .head
             .label()
             .len()
-            .max(longest_branch_len)
-            .max(longest_worktree_name_len);
-        let longest_worktree_dir_len = self
+            .max(longest_branch_name)
+            .max(longest_worktree_name);
+        let longest_dir = self
             .worktrees
             .iter()
             .map(|x| x.dir.to_str().unwrap().len())
             .max()
             .unwrap_or(0);
 
-        let cur_span = Span::from(self.head.label()).bg(Color::Cyan);
-        let current_head_line = Line::from(vec!["   ".into(), cur_span]);
+        let items: Vec<_> = match &self.view {
+            SearchView::Idle => iter::once(render_head(&self.head))
+                .chain(
+                    self.branches
+                        .iter()
+                        .enumerate()
+                        .map(|(i, b)| render_branch(b, i, longest_entry)),
+                )
+                .chain(
+                    self.worktrees
+                        .iter()
+                        .map(|w| render_worktree(w, longest_entry, longest_dir)),
+                )
+                .collect(),
 
-        let branch_lines: Vec<Line> = self
-            .branches
-            .iter()
-            .enumerate()
-            .map(|(i, b)| {
-                Line::from(vec![
-                    Span::from(format!(" {i} ")).bg(Color::DarkGray),
-                    Span::from(format!("{:width$}", b.name, width = longest_entry_len))
-                        .bg(Color::White),
-                ])
-            })
-            .collect();
+            SearchView::Filtered { list, .. } => {
+                let RankedSearchList {
+                    available,
+                    worktrees,
+                } = list;
 
-        let worktree_lines: Vec<Line> = self
-            .worktrees
-            .iter()
-            .map(|w| {
-                Line::from(vec![
-                    "   ".into(),
-                    Span::from(format!(
-                        "{:width$}",
-                        w.head.label(),
-                        width = longest_entry_len
-                    ))
-                    .bg(Color::Blue),
-                    Span::from(format!(
-                        "  {:width$}",
-                        w.dir.to_string_lossy(),
-                        width = longest_worktree_dir_len
-                    ))
-                    .bg(Color::DarkGray),
-                ])
-            })
-            .collect();
-
-        let items: Vec<_> = iter::once(current_head_line)
-            .chain(branch_lines)
-            .chain(worktree_lines)
-            .collect();
+                available
+                    .iter()
+                    .enumerate()
+                    .map(|(i, h)| match h {
+                        Head::Detached { .. } => render_head(&h),
+                        Head::Branch(b) => render_branch(b, i, longest_entry),
+                    })
+                    .chain(
+                        worktrees
+                            .iter()
+                            .map(|w| render_worktree(w, longest_entry, longest_dir)),
+                    )
+                    .collect()
+            }
+        };
 
         let list = List::new(items).highlight_style(Style::new().bg(Color::LightGreen));
 
         frame.render_stateful_widget(list, area, list_state);
     }
+}
+
+fn render_head(h: &'_ Head) -> Line<'_> {
+    Line::from(vec![
+        Span::from(BRANCH_INDEX_PADD),
+        Span::from(h.label()).bg(Color::Cyan),
+    ])
+}
+
+fn render_branch(b: &'_ Branch, idx: usize, max_entry_len: usize) -> Line<'_> {
+    Line::from(vec![
+        Span::from(format!(" {idx} ")).bg(Color::DarkGray),
+        Span::from(format!("{:width$}", b.name, width = max_entry_len)).bg(Color::White),
+    ])
+}
+
+fn render_worktree(w: &'_ Worktree, max_entry_len: usize, max_dir_len: usize) -> Line<'_> {
+    Line::from(vec![
+        "   ".into(),
+        Span::from(format!("{:width$}", w.head.label(), width = max_entry_len)).bg(Color::Blue),
+        Span::from(format!(
+            "  {:width$}",
+            w.dir.to_string_lossy(),
+            width = max_dir_len
+        ))
+        .bg(Color::DarkGray),
+    ])
 }

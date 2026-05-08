@@ -11,6 +11,7 @@ use git_jump::{
     app::InteractiveApp,
     command::{delete_sub_command, jump_to, list_sub_command, new_sub_command, rename_sub_command},
     git::{GitDirs, list_worktrees, locate_git_repo_dirs, read_raw_git_branches},
+    list::prep_available_branches,
     storage::get_and_clean_branches,
     types::{Branch, Model, ModifierKey, Msg, Worktree},
 };
@@ -103,7 +104,9 @@ pub fn main() -> Result<()> {
                 .find(|w| w.dir.eq(&state.active_worktree))
                 .unwrap();
 
-            let app = InteractiveApp::new(w.head.to_owned(), state.branches, state.worktrees);
+            let branches = prep_available_branches(&state.branches, &state.worktrees);
+
+            let app = InteractiveApp::new(w.head.to_owned(), branches, state.worktrees);
             ratatui::run(|terminal| app.run(terminal))?;
         }
         Invocation::JumpTo(branch) => {

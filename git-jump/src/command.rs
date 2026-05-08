@@ -87,7 +87,7 @@ pub fn jump_to(state: &Model, target: &str, args: &[&str]) -> Result<Msg> {
 
     if args.is_empty() {
         let stay = match &current_worktree.head {
-            Head::Branch { name, .. } => target.eq(name),
+            Head::Branch(b) => target.eq(&b.name),
             Head::Detached { .. } => true,
         };
 
@@ -143,7 +143,7 @@ pub fn jump_to(state: &Model, target: &str, args: &[&str]) -> Result<Msg> {
 pub fn switch_to_list_item(head: &Head) -> Result<Msg> {
     match head {
         Head::Detached { sha } => Ok(Msg::Info(vec![format!("Staying on {}", sha)])),
-        Head::Branch { name, .. } => match git_command("switch", &[name]) {
+        Head::Branch(b) => match git_command("switch", &[&b.name]) {
             Ok(msg) => Ok(Msg::Info(vec![msg])),
             Err(msg) => Ok(Msg::Error {
                 title: "Failed to Switch Branch".to_string(),
