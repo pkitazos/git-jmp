@@ -1,10 +1,7 @@
 use anyhow::{Context, Result, anyhow};
 use std::{path::PathBuf, process::Command};
 
-use crate::{
-    types::{Head, Worktree},
-    utils::now,
-};
+use crate::types::{Branch, Head, Worktree};
 
 pub struct GitDirs {
     pub main_worktree: PathBuf,
@@ -79,7 +76,7 @@ fn parse_worktree_entry(lines: &[&str]) -> Result<Worktree> {
                 "worktree" => dir = Some(PathBuf::from(val)),
                 "HEAD" => sha = Some(val),
                 "branch" => {
-                    branch = match val.strip_prefix("refs/heads") {
+                    branch = match val.strip_prefix("refs/heads/") {
                         Some(name) => Some(name),
                         None => Some(val),
                     }
@@ -106,10 +103,10 @@ fn parse_worktree_entry(lines: &[&str]) -> Result<Worktree> {
         }),
         (false, false, _, Some(name), Some(dir)) => Ok(Worktree {
             dir,
-            head: Head::Branch {
-                name: name.to_owned(),
-                last_switch: now(),
-            },
+            head: Head::Branch(Branch {
+                name: name.to_string(),
+                last_switch: 0u64, // ! this is wrong
+            }),
         }),
         _ => Err(anyhow!("Malformed worktree record: {:?}", lines)),
     }

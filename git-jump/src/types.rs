@@ -31,15 +31,6 @@ pub struct Branch {
     pub last_switch: u64,
 }
 
-impl Branch {
-    pub fn into_head(self) -> Head {
-        Head::Branch {
-            name: self.name,
-            last_switch: self.last_switch,
-        }
-    }
-}
-
 impl PartialOrd for Branch {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         Some(self.cmp(other))
@@ -78,28 +69,28 @@ impl Ord for Worktree {
 #[derive(PartialEq, Eq, Clone)]
 pub enum Head {
     Detached { sha: String },
-    Branch { name: String, last_switch: u64 },
+    Branch(Branch),
 }
 
 impl Head {
     pub fn label(&self) -> &str {
         match self {
             Head::Detached { sha } => sha,
-            Head::Branch { name, .. } => name,
+            Head::Branch(b) => &b.name,
         }
     }
 
     pub fn into_label(self) -> String {
         match self {
             Head::Detached { sha } => sha,
-            Head::Branch { name, .. } => name,
+            Head::Branch(b) => b.name,
         }
     }
 
     pub fn last_switched(&self) -> u64 {
         match self {
             Head::Detached { .. } => now(),
-            Head::Branch { last_switch, .. } => last_switch.to_owned(),
+            Head::Branch(b) => b.last_switch.to_owned(),
         }
     }
 }
@@ -116,18 +107,10 @@ impl Ord for Head {
             (Head::Detached { sha: a }, Head::Detached { sha: b }) => a.cmp(b),
             (Head::Detached { .. }, Head::Branch { .. }) => cmp::Ordering::Greater,
             (Head::Branch { .. }, Head::Detached { .. }) => cmp::Ordering::Less,
-            (
-                Head::Branch {
-                    name: a_name,
-                    last_switch: a_last_switch,
-                },
-                Head::Branch {
-                    name: b_name,
-                    last_switch: b_last_switch,
-                },
-            ) => a_last_switch
-                .cmp(b_last_switch)
-                .then_with(|| a_name.cmp(b_name)),
+            (Head::Branch(a), Head::Branch(b)) => a
+                .last_switch
+                .cmp(&b.last_switch)
+                .then_with(|| a.name.cmp(&b.name)),
         }
     }
 }

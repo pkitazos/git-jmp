@@ -40,7 +40,7 @@ pub fn generate_ranked_list(
     })
     .chain(branches.iter().map(|b| MatchRecord {
         match_score: fuzzy_match(search_string, &b.name),
-        item: b.to_owned().into_head(),
+        item: Head::Branch(b.to_owned()),
     }))
     .collect();
 
