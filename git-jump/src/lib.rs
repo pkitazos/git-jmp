@@ -1,3 +1,4 @@
+pub mod app;
 pub mod command;
 pub mod fuzzy_match;
 pub mod git;

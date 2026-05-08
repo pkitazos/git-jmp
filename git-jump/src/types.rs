@@ -1,5 +1,7 @@
 use std::{cmp, path::PathBuf};
 
+use crate::app::InteractiveApp;
+
 // AppConfig is not the best name. This is more like.. runtime info?
 // - cols, rows, max_rows are definitely just runtime information
 // - modifier_key is presentation info, previously it was a `isMac` boolean flag
@@ -15,7 +17,7 @@ pub struct Model {
     pub max_rows: usize,
     pub branches: Vec<Branch>,
     pub worktrees: Vec<Worktree>,
-    pub interactive_state: Option<UIState>,
+    pub interactive_state: Option<InteractiveApp>,
 }
 
 pub enum ModifierKey {
@@ -101,14 +103,6 @@ impl Ord for Head {
             (Head::Branch { name: a }, Head::Branch { name: b }) => a.cmp(b),
         }
     }
-}
-
-// There are two modes, plain (compute-and-print-and-exit) and interactive (Elm loop)
-// the interactive mode requires the following state to be present on the model
-pub struct UIState {
-    pub highlighted_line_index: usize,
-    pub search_string: String,
-    pub cursor_position: usize,
 }
 
 // the Non-interactive mode really just renders things on-demand
