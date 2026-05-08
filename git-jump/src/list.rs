@@ -13,12 +13,17 @@ use crate::{
 
 pub enum SearchList {
     Idle {
+        /// the currently checked out branch
         head: Head,
+        /// branches you can jump to (does not include currently checked out branch)
         available_branches: Vec<Branch>,
+        /// branches checked out in linked worktrees
         in_worktrees: Vec<Worktree>,
     },
     InSearch {
+        /// all branches you can jump to that match the search input
         available: Vec<Head>,
+        /// all worktrees that match the search input
         worktrees: Vec<Worktree>,
     },
 }

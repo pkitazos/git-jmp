@@ -1,6 +1,7 @@
 pub mod command;
 pub mod fuzzy_match;
 pub mod git;
+pub mod input;
 pub mod list;
 pub mod storage;
 pub mod system;
