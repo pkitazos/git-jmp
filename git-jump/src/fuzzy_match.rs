@@ -34,5 +34,5 @@ pub fn fuzzy_match(search: &str, target: &str) -> usize {
         .map(|w| (w[1] - w[0]) == 1)
         .count();
 
-    prefix_bonus + continuity_bonus
+    1 + prefix_bonus + continuity_bonus
 }
