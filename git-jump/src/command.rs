@@ -1,89 +1,81 @@
-use anyhow::{Result, anyhow};
-
 use crate::{
     git::{fetch_remote_branches, git_command},
     list::{generate_ranked_list, prep_available_branches},
     storage::{delete_jump_data_branch, rename_jump_data_branch, update_branch_last_switch},
-    types::{Head, Model, Msg, RankedSearchList},
+    types::{BranchDeleteResult, GitJumpError, Head, Model, RankedSearchList, get_active_worktree},
     utils::now,
 };
 
-// The main thing I've taken away from writing this module is that in the TS version
-// I was doing a lot of parsing ad-hoc, just because TS is more forgiving.
-// In fact the boundary was still very sloppy I was passing raw-string lists all over the place
-//
-// Taking a page out of the Cobra book (I'm sure clap does the same thing), but basically
-// not going to try and build my own bespoke command dispatcher, which probably means
-// that a good amount of these function's signature will change
-// Parse, Don't Validate!
-
-// ---
-
-pub fn list_sub_command(state: &Model) -> Result<Msg> {
-    let branch_names = prep_available_branches(&state.branches, &state.worktrees)
+pub fn list_sub_command(state: &Model) -> Vec<String> {
+    prep_available_branches(&state.branches, &state.worktrees)
         .iter()
         .map(|b| b.name.to_owned())
-        .collect();
-
-    Ok(Msg::Info(branch_names))
+        .collect()
 }
 
 /// side-effect: update the JumpData file
-pub fn new_sub_command(state: &Model, branch_name: &str) -> Result<Msg> {
-    match git_command("switch", &["--create"]) {
+pub fn new_sub_command(state: &Model, branch_name: &str) -> Result<String, GitJumpError> {
+    match git_command("switch", &["--create", branch_name]) {
         Ok(msg) => {
             update_branch_last_switch(&state.main_worktree, branch_name, now())?;
-            Ok(Msg::Info(vec![msg]))
+            Ok(msg)
         }
-        Err(err) => Ok(Msg::Error {
-            title: "Failed to Create new Branch".to_string(),
-            body: err.to_string(),
-        }),
+        Err(err) => Err(GitJumpError::BranchCreation(err)),
     }
 }
 
 /// side-effect: update the JumpData file
-pub fn rename_sub_command(state: &Model, src: &str, target: &str) -> Result<Msg> {
-    // validation from old variant moves to call-site
-    match git_command("branch", &["--move", src, target]) {
+/// ! does not support proper renaming
+pub fn rename_sub_command(
+    state: &Model,
+    src: Option<&str>,
+    target: &str,
+) -> Result<String, GitJumpError> {
+    let src = match src {
+        Some(name) => name.to_owned(),
+        None => match get_active_worktree(&state.worktrees, &state.active_worktree).head {
+            Head::Branch(b) => b.name.clone(),
+            Head::Detached { .. } => return Err(GitJumpError::DetachedHead),
+        },
+    };
+
+    match git_command("branch", &["--move", &src, target]) {
         Ok(msg) => {
-            rename_jump_data_branch(&state.main_worktree, src, target)?;
-            Ok(Msg::Info(vec![msg]))
+            rename_jump_data_branch(&state.main_worktree, &src, target)?;
+            Ok(msg)
         }
-        Err(err) => Ok(Msg::Error {
-            title: "Failed to Rename Branch".to_string(),
-            body: err.to_string(),
-        }),
+        Err(err) => Err(GitJumpError::BranchRenaming(err)),
     }
 }
 
 /// side-effect: update the JumpData file
-pub fn delete_sub_command(state: &Model, branch_names: &[&str]) -> Result<Msg> {
-    let args: Vec<&str> = ["--delete"]
+pub fn delete_sub_command(
+    state: &Model,
+    branch_names: &[&str],
+) -> Result<Vec<BranchDeleteResult>, GitJumpError> {
+    let results: Vec<_> = branch_names
         .iter()
-        .chain(branch_names)
-        .map(|&x| x)
+        .map(|&b| match git_command("branch", &["--delete", b]) {
+            Ok(_) => BranchDeleteResult::Deleted(b.to_string()),
+            Err(e) => BranchDeleteResult::Failed(b.to_string(), e.to_string()),
+        })
         .collect();
 
-    match git_command("branch", &args) {
-        Ok(msg) => {
-            delete_jump_data_branch(&state.main_worktree, branch_names)?;
-            Ok(Msg::Info(vec![msg]))
-        }
-        Err(err) => Ok(Msg::Error {
-            title: "Failed Branch Deletion".to_string(),
-            body: err.to_string(),
-        }),
-    }
+    let successful_deletions: Vec<_> = results
+        .iter()
+        .filter_map(|b| match b {
+            BranchDeleteResult::Deleted(b) => Some(b.as_str()),
+            BranchDeleteResult::Failed(_, _) => None,
+        })
+        .collect();
+
+    delete_jump_data_branch(&state.main_worktree, &successful_deletions)?;
+    Ok(results)
 }
 
 /// side-effect: execute git switch
-pub fn jump_to(state: &Model, target: &str, args: &[&str]) -> Result<Msg> {
-    let current_worktree = state
-        .worktrees
-        .iter()
-        .find(|&w| w.dir.eq(&state.active_worktree))
-        .ok_or(anyhow!("Head should exist"))?;
+pub fn jump_to(state: &Model, target: &str, args: &[&str]) -> Result<String, GitJumpError> {
+    let current_worktree = get_active_worktree(&state.worktrees, &state.active_worktree);
 
     if args.is_empty() {
         let stay = match &current_worktree.head {
@@ -92,12 +84,12 @@ pub fn jump_to(state: &Model, target: &str, args: &[&str]) -> Result<Msg> {
         };
 
         if stay {
-            return Ok(Msg::Info(vec![format!("Staying on {}", target)]));
+            return Ok(format!("Staying on {}", target));
         }
     }
 
     let err = match git_command("switch", &args) {
-        Ok(msg) => return Ok(Msg::Info(vec![msg])),
+        Ok(msg) => return Ok(msg),
         Err(e) => e,
     };
 
@@ -110,15 +102,10 @@ pub fn jump_to(state: &Model, target: &str, args: &[&str]) -> Result<Msg> {
                 .contains(&target);
 
             if target_exists {
-                return Ok(Msg::Error {
-                    title: "Switch Error".to_string(),
-                    body: err.to_string(),
-                });
+                return Err(GitJumpError::SwitchFailed(err));
             }
         }
-        Err(_) => {
-            // seems like the error case for the remote fetch is just swallowed
-        }
+        Err(err) => return Err(GitJumpError::Other(err)),
     }
 
     let RankedSearchList { available, .. } = {
@@ -130,9 +117,8 @@ pub fn jump_to(state: &Model, target: &str, args: &[&str]) -> Result<Msg> {
     };
 
     if available.is_empty() {
-        return Ok(Msg::Error {
-            title: "No match".to_string(),
-            body: format!("{} does not match any branch", target),
+        return Err(GitJumpError::NoMatch {
+            target: target.to_string(),
         });
     }
 
@@ -140,15 +126,12 @@ pub fn jump_to(state: &Model, target: &str, args: &[&str]) -> Result<Msg> {
 }
 
 /// side-effect: execute `git switch`
-pub fn switch_to_list_item(head: &Head) -> Result<Msg> {
+pub fn switch_to_list_item(head: &Head) -> Result<String, GitJumpError> {
     match head {
-        Head::Detached { sha } => Ok(Msg::Info(vec![format!("Staying on {}", sha)])),
+        Head::Detached { sha } => Ok(format!("Staying on {}", sha)),
         Head::Branch(b) => match git_command("switch", &[&b.name]) {
-            Ok(msg) => Ok(Msg::Info(vec![msg])),
-            Err(msg) => Ok(Msg::Error {
-                title: "Failed to Switch Branch".to_string(),
-                body: msg.to_string(),
-            }),
+            Ok(msg) => Ok(msg),
+            Err(err) => Err(GitJumpError::SwitchFailed(err)),
         },
     }
 }

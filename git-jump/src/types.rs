@@ -1,4 +1,8 @@
-use std::{cmp, path::PathBuf};
+use std::{
+    cmp,
+    path::{Path, PathBuf},
+};
+use thiserror::Error;
 
 use crate::{app::InteractiveApp, utils::now};
 
@@ -66,6 +70,14 @@ impl Ord for Worktree {
     }
 }
 
+pub fn get_active_worktree(worktrees: &Vec<Worktree>, active_worktree_dir: &Path) -> Worktree {
+    worktrees
+        .iter()
+        .find(|w| w.dir.eq(&active_worktree_dir))
+        .unwrap()
+        .clone()
+}
+
 #[derive(PartialEq, Eq, Clone)]
 pub enum Head {
     Detached { sha: String },
@@ -123,9 +135,28 @@ pub struct RankedSearchList {
     pub worktrees: Vec<Worktree>,
 }
 
-// the Non-interactive mode really just renders things on-demand
-// and may not even need this type at all
-pub enum Msg {
-    Info(Vec<String>),
-    Error { title: String, body: String },
+#[derive(Error, Debug)]
+pub enum GitJumpError {
+    #[error("Failed to create branch")]
+    BranchCreation(#[source] anyhow::Error),
+
+    #[error("Failed to rename branch")]
+    BranchRenaming(#[source] anyhow::Error),
+
+    #[error("{target} does not match any branch")]
+    NoMatch { target: String },
+
+    #[error("Failed to switch branch")]
+    SwitchFailed(#[source] anyhow::Error),
+
+    #[error("Can't rename: HEAD is detached, specify the branch explicitly")]
+    DetachedHead,
+
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
+}
+
+pub enum BranchDeleteResult {
+    Deleted(String),        // branch name
+    Failed(String, String), // branch name, reason
 }
