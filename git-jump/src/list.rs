@@ -1,4 +1,4 @@
-use std::{collections::HashSet, iter};
+use std::{collections::HashSet, iter, path::Path};
 
 use crate::{
     fuzzy_match::fuzzy_match,
@@ -26,6 +26,20 @@ pub fn prep_available_branches(branches: &[Branch], worktrees: &[Worktree]) -> V
 
     available_branches.sort();
     available_branches
+}
+
+pub fn prep_available_worktrees(
+    worktrees: &[Worktree],
+    active_worktree_dir: &Path,
+) -> Vec<Worktree> {
+    let mut available_worktrees: Vec<Worktree> = worktrees
+        .iter()
+        .filter(|w| !w.dir.iter().eq(active_worktree_dir))
+        .cloned()
+        .collect();
+
+    available_worktrees.sort();
+    available_worktrees
 }
 
 pub fn generate_ranked_list(
