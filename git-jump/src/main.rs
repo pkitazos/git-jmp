@@ -5,6 +5,7 @@ use std::{
     fs::{self, File, OpenOptions},
     io::Write,
     path::PathBuf,
+    process,
 };
 
 use git_jump::{
@@ -13,7 +14,8 @@ use git_jump::{
     git::{GitDirs, list_worktrees, locate_git_repo_dirs, read_raw_git_branches},
     list::{prep_available_branches, prep_available_worktrees},
     storage::get_and_clean_branches,
-    types::{Branch, Model, ModifierKey, Msg, Worktree},
+    types::{Branch, Model, ModifierKey, Worktree, get_active_worktree},
+    ui::{render_branch_deletion_res, render_branch_list, render_git_jump_error},
 };
 
 #[derive(Parser)]
@@ -49,7 +51,7 @@ pub enum Commands {
     #[command(arg_required_else_help = true)]
     /// Rename branch called <curr_name> to <new_name>
     Rename {
-        current_name: String,
+        current_name: Option<String>,
         new_name: String,
     },
 }
@@ -98,11 +100,7 @@ pub fn main() -> Result<()> {
 
     match &cli.into_invocation() {
         Invocation::Interactive => {
-            let w = state
-                .worktrees
-                .iter()
-                .find(|w| w.dir.eq(&state.active_worktree))
-                .unwrap();
+            let w = get_active_worktree(&state.worktrees, &state.active_worktree);
 
             let branches = prep_available_branches(&state.branches, &state.worktrees);
             let worktrees = prep_available_worktrees(&state.worktrees, &state.active_worktree);
@@ -110,50 +108,81 @@ pub fn main() -> Result<()> {
             let app = InteractiveApp::new(w.head.to_owned(), branches, worktrees);
             ratatui::run(|terminal| app.run(terminal))?;
         }
-        Invocation::JumpTo(branch) => {
-            let _ = jump_to(&state, branch, &[])?;
-            // todo: render
-        }
-        Invocation::Sub(commands) => {
-            let _ = dispatch_sub_command(&state, commands)?;
-            // todo: render
-        }
+
+        Invocation::JumpTo(branch) => match jump_to(&state, branch, &[]) {
+            Ok(info) => {
+                println!("{}", info);
+                process::exit(0)
+            }
+            Err(err) => {
+                render_git_jump_error(err);
+                process::exit(1)
+            }
+        },
+
+        Invocation::Sub(cmd) => match cmd {
+            Commands::List => {
+                println!("[LIST]");
+                let branches = list_sub_command(&state);
+                render_branch_list(branches);
+                process::exit(0)
+            }
+
+            Commands::New { branch_name } => {
+                println!("[NEW]");
+                match new_sub_command(&state, branch_name) {
+                    Ok(info) => {
+                        println!("{}", info);
+                        process::exit(0)
+                    }
+                    Err(err) => {
+                        render_git_jump_error(err);
+                        process::exit(1)
+                    }
+                };
+            }
+
+            Commands::Delete { branch_names } => {
+                println!("[DELETE]");
+                match delete_sub_command(
+                    &state,
+                    &branch_names
+                        .iter()
+                        .map(|b| b.as_str())
+                        .collect::<Vec<&str>>(),
+                ) {
+                    Ok(res) => {
+                        render_branch_deletion_res(res);
+                        let exit_code = 0; // todo: compute this based on deletion results
+                        process::exit(exit_code)
+                    }
+                    Err(err) => {
+                        render_git_jump_error(err);
+                        process::exit(1)
+                    }
+                }
+            }
+
+            Commands::Rename {
+                current_name,
+                new_name,
+            } => {
+                println!("[RENAME]");
+                match rename_sub_command(&state, current_name.as_deref(), new_name) {
+                    Ok(info) => {
+                        println!("{}", info);
+                        process::exit(0)
+                    }
+                    Err(err) => {
+                        render_git_jump_error(err);
+                        process::exit(1)
+                    }
+                }
+            }
+        },
     }
 
     Ok(())
-}
-
-fn dispatch_sub_command(state: &Model, cmd: &Commands) -> Result<Msg> {
-    match cmd {
-        Commands::List => {
-            println!("[LIST]");
-            list_sub_command(state)
-        }
-
-        Commands::New { branch_name } => {
-            println!("[NEW]");
-            new_sub_command(state, branch_name)
-        }
-
-        Commands::Delete { branch_names } => {
-            println!("[DELETE]");
-            delete_sub_command(
-                state,
-                &branch_names
-                    .iter()
-                    .map(|b| b.as_str())
-                    .collect::<Vec<&str>>(),
-            )
-        }
-
-        Commands::Rename {
-            current_name,
-            new_name,
-        } => {
-            println!("[RENAME]");
-            rename_sub_command(state, current_name, new_name)
-        }
-    }
 }
 
 // ---
