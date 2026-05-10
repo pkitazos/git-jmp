@@ -14,7 +14,7 @@ pub fn list_sub_command(state: &Model) -> Vec<String> {
 pub fn new_sub_command(state: &Model, branch_name: &str) -> Result<String, GitJumpError> {
     match git_command("switch", &["--create", branch_name]) {
         Ok(msg) => {
-            update_branch_last_switch(&state.main_worktree, branch_name, now())?;
+            update_branch_last_switch(&state.main_worktree.data_file(), branch_name, now())?;
             Ok(msg)
         }
         Err(err) => Err(GitJumpError::BranchCreation(err)),
@@ -38,7 +38,7 @@ pub fn rename_sub_command(
 
     match git_command("branch", &["--move", &src, target]) {
         Ok(msg) => {
-            rename_jump_data_branch(&state.main_worktree, &src, target)?;
+            rename_jump_data_branch(&state.main_worktree.data_file(), &src, target)?;
             Ok(msg)
         }
         Err(err) => Err(GitJumpError::BranchRenaming(err)),
@@ -66,7 +66,7 @@ pub fn delete_sub_command(
         })
         .collect();
 
-    delete_jump_data_branch(&state.main_worktree, &successful_deletions)?;
+    delete_jump_data_branch(&state.main_worktree.data_file(), &successful_deletions)?;
     Ok(results)
 }
 

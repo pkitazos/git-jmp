@@ -89,8 +89,8 @@ fn load_jump_data(data_file: &Path) -> Result<BranchCollection> {
     let file = File::open(data_file)?;
     let reader = BufReader::new(file);
 
-    let branches: OnDisk =
-        serde_json::from_reader(reader).context("Failed to deserialize jump data")?;
+    let branches: OnDisk = serde_json::from_reader(reader)
+        .with_context(|| format!("failed to deserialize jump data at {}", data_file.display()))?;
 
     match branches {
         OnDisk::V2(_) => {}
@@ -104,15 +104,27 @@ fn load_jump_data(data_file: &Path) -> Result<BranchCollection> {
 }
 
 fn create_backup(data_file: &Path) -> Result<()> {
-    let backup_file = data_file.with_extension(".json.v1.bak");
-    fs::copy(data_file, backup_file).context("Failed to back up old jump data file")?;
+    let backup_file = data_file.with_extension("json.v1.bak");
+    fs::copy(data_file, backup_file).with_context(|| {
+        format!(
+            "failed to back up old jump data file for {}",
+            data_file.display()
+        )
+    })?;
+
     Ok(())
 }
 
 fn save_branches_jump_data(data_file: &Path, jump_data: &BranchCollection) -> Result<()> {
     let file = File::create(data_file)?;
     let writer = BufWriter::new(file);
-    serde_json::to_writer(writer, &jump_data).context("Failed to write serialized branch data")?;
+    serde_json::to_writer(writer, &jump_data).with_context(|| {
+        format!(
+            "failed to write serialized branch data to {}",
+            data_file.display()
+        )
+    })?;
+
     Ok(())
 }
 
