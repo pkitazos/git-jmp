@@ -1,16 +1,18 @@
 use anyhow::{Context, Result, anyhow};
 use std::{path::PathBuf, process::Command};
 
-use crate::types::{Branch, Head, Worktree};
+use crate::types::{Branch, Head, MainWorktree, Worktree};
 
 pub struct GitDirs {
-    pub main_worktree: PathBuf,
+    pub main_worktree: MainWorktree,
     pub active_worktree: PathBuf,
 }
 
 pub fn locate_git_repo_dirs() -> Result<GitDirs> {
     let stdout = git_command("rev-parse", &["--path-format=absolute", "--git-common-dir"])?;
-    let main_worktree = PathBuf::from(stdout);
+    let main_worktree = MainWorktree {
+        project_root_dir: PathBuf::from(stdout).parent().unwrap().to_path_buf(),
+    };
 
     let stdout = git_command("rev-parse", &["--show-toplevel"])?;
     let active_worktree = PathBuf::from(stdout);
@@ -120,8 +122,7 @@ pub fn git_command(sub_cmd: &str, args: &[&str]) -> Result<String> {
     let output = cmd.output()?;
 
     if !output.status.success() {
-        let err_msg = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!("git exited with {}: {}", output.status, err_msg));
+        return Err(anyhow!("{}", String::from_utf8_lossy(&output.stderr)));
     };
 
     let stdout =

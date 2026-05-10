@@ -6,14 +6,8 @@ use thiserror::Error;
 
 use crate::{app::InteractiveApp, utils::now};
 
-// AppConfig is not the best name. This is more like.. runtime info?
-// - cols, rows, max_rows are definitely just runtime information
-// - modifier_key is presentation info, previously it was a `isMac` boolean flag
-//   that just changed the string we displayed for the modifier key (opt or alt)
-// - main_worktree is actually constant every time
-// - active_worktree depends on where you run it from
 pub struct Model {
-    pub main_worktree: PathBuf,
+    pub main_worktree: MainWorktree,
     pub active_worktree: PathBuf,
     pub modifier_key: ModifierKey,
     pub columns: usize,
@@ -22,6 +16,35 @@ pub struct Model {
     pub branches: Vec<Branch>,
     pub worktrees: Vec<Worktree>,
     pub interactive_state: Option<InteractiveApp>,
+}
+
+pub struct MainWorktree {
+    pub project_root_dir: PathBuf,
+}
+
+/// The name of the hidden directory created within the target Git repository
+/// to store jump-related metadata.
+pub const JUMP_FOLDER: &str = ".jump";
+
+/// The name of the JSON file where branch usage history and timestamps are saved.
+pub const DATA_FILE: &str = "data.json";
+
+impl MainWorktree {
+    pub fn root(&self) -> &Path {
+        &self.project_root_dir
+    }
+
+    pub fn git_dir(&self) -> PathBuf {
+        self.project_root_dir.join(".git")
+    }
+
+    pub fn jump_dir(&self) -> PathBuf {
+        self.root().join(JUMP_FOLDER)
+    }
+
+    pub fn data_file(&self) -> PathBuf {
+        self.jump_dir().join(DATA_FILE)
+    }
 }
 
 pub enum ModifierKey {

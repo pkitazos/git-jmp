@@ -14,7 +14,10 @@ use git_jump::{
     git::{GitDirs, list_worktrees, locate_git_repo_dirs, read_raw_git_branches},
     list::{prep_available_branches, prep_available_worktrees},
     storage::get_and_clean_branches,
-    types::{Branch, BranchDeleteResult, Model, ModifierKey, Worktree, get_active_worktree},
+    types::{
+        Branch, BranchDeleteResult, DATA_FILE, JUMP_FOLDER, MainWorktree, Model, ModifierKey,
+        Worktree, get_active_worktree,
+    },
     ui::{render_branch_deletion_res, render_branch_list, render_git_jump_error},
 };
 
@@ -185,17 +188,8 @@ pub fn main() -> Result<()> {
 
 // ---
 
-/// The name of the hidden directory created within the target Git repository
-/// to store jump-related metadata.
-const JUMP_FOLDER: &str = ".jump";
-
-/// The name of the JSON file where branch usage history and timestamps are saved.
-const DATA_FILE: &str = "data.json";
-
-fn ensure_jump_folder_exists(path: &PathBuf) -> Result<()> {
-    let jump_store_dir = path.join(JUMP_FOLDER);
-    let store_data_file = jump_store_dir.join(DATA_FILE);
-
+fn ensure_jump_folder_exists(main_worktree: &MainWorktree) -> Result<()> {
+    let jump_store_dir = main_worktree.jump_dir();
     if !jump_store_dir.exists() {
         if let Err(e) = fs::create_dir(jump_store_dir) {
             return Err(anyhow!("Couldn't create {} dir: {}", JUMP_FOLDER, e));
@@ -203,7 +197,7 @@ fn ensure_jump_folder_exists(path: &PathBuf) -> Result<()> {
 
         let mut file = OpenOptions::new()
             .append(true)
-            .open(path.join(".git").join("info").join("exclude"))
+            .open(main_worktree.git_dir().join("info").join("exclude"))
             .unwrap();
 
         if let Err(e) = writeln!(file, "\n{}", JUMP_FOLDER) {
@@ -211,6 +205,7 @@ fn ensure_jump_folder_exists(path: &PathBuf) -> Result<()> {
         }
     }
 
+    let store_data_file = main_worktree.data_file();
     if !store_data_file.exists() {
         let mut file = File::create(store_data_file)?;
         if let Err(e) = file.write_all(b"{}") {
@@ -222,25 +217,11 @@ fn ensure_jump_folder_exists(path: &PathBuf) -> Result<()> {
 }
 
 struct InitData {
-    main_worktree: PathBuf,
+    main_worktree: MainWorktree,
     active_worktree: PathBuf,
     branches: Vec<Branch>,
     worktrees: Vec<Worktree>,
 }
-
-// struct MainWorktree {
-//     path: PathBuf,
-// }
-
-// impl MainWorktree {
-//     pub fn git_dir(&self) -> &Path {
-//         &self.path.join(".git")
-//     }
-
-//     pub fn jump_dir(&self) -> &Path {
-//         &self.path.join(JUMP_FOLDER)
-//     }
-// }
 
 fn init() -> Result<InitData> {
     let GitDirs {
@@ -256,14 +237,7 @@ fn init() -> Result<InitData> {
 
     let worktrees = list_worktrees()?;
 
-    let branches = get_and_clean_branches(
-        &main_worktree
-            .parent()
-            .unwrap() // for this to fail, main_worktree needs to be set to "/" or "" somehow
-            .join(JUMP_FOLDER)
-            .join(DATA_FILE),
-        &branch_names,
-    )?;
+    let branches = get_and_clean_branches(&main_worktree.data_file(), &branch_names)?;
 
     Ok(InitData {
         main_worktree,

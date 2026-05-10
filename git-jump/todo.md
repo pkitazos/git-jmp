@@ -1,6 +1,10 @@
 # Todo
 
 - [x] display errors nicely
+  - [ ] `rm` should not lose native git command info in its output `Deleted branch <branch name> (was <sha>).`
+  - [ ] `rm` should remove newline char between multiple failure messages
+  - [ ] `new` should also not lose native git command info `Switched to a new branch '<branch name>'`
+  - [ ] `mv` is broken
 - [ ] `git jump -` should work like `git switch -` it should not fuzzy match on some branch
 - [ ] should be able to call `--version / -v` and `--help / -h` from anywhere on the system (probably comes by default with clap)
 - [ ] finish wiring up interactive mode
