@@ -1,20 +1,104 @@
-use crate::types::{BranchDeleteResult, GitJumpError};
+use std::io::{self, IsTerminal};
 
-// const HEAD_INDEX_PADD: &'static str = " * ";
-pub const BRANCH_INDEX_PADD: &'static str = "   ";
-// const LINE_SPACER: &'static str = "  ";
+use crossterm::style::Stylize;
 
-pub fn render_git_jump_error(err: GitJumpError) {
-    match err {
-        GitJumpError::BranchCreation(error) => todo!(),
-        GitJumpError::BranchRenaming(error) => todo!(),
-        GitJumpError::NoMatch { target } => todo!(),
-        GitJumpError::SwitchFailed(error) => todo!(),
-        GitJumpError::DetachedHead => todo!(),
-        GitJumpError::Other(error) => todo!(),
+use crate::{
+    list::worktree_branch_names,
+    types::{BranchDeleteResult, GitJumpError, Head, Worktree},
+};
+
+pub const BRANCH_INDEX_PADD: &str = "   ";
+
+pub fn render_branch_list(active: &Head, branches: &[String], worktrees: &[Worktree]) {
+    let mut ws = worktree_branch_names(worktrees);
+    ws.remove(&active.label());
+
+    if !io::stdout().is_terminal() {
+        for name in branches {
+            println!("{}", name);
+        }
+        return;
+    }
+
+    for name in branches {
+        if name == active.label() {
+            println!(" * {}", active.label().green());
+        } else if ws.contains(name.as_str()) {
+            println!(" + {}", name.as_str().cyan());
+        } else {
+            println!("{BRANCH_INDEX_PADD}{name}");
+        }
     }
 }
 
-pub fn render_branch_deletion_res(res: Vec<BranchDeleteResult>) {}
+pub fn render_git_jump_error(err: GitJumpError) {
+    let (title, body) = match &err {
+        GitJumpError::BranchCreation(e) => ("Failed to create branch".to_string(), e.to_string()),
 
-pub fn render_branch_list(branches: Vec<String>) {}
+        GitJumpError::BranchRenaming(e) => ("Failed to rename branch".to_string(), e.to_string()),
+
+        GitJumpError::SwitchFailed(e) => ("Failed to switch branch".to_string(), e.to_string()),
+
+        GitJumpError::NoMatch { target } => (
+            "No matching branch".to_string(),
+            format!("'{}' does not match any branch", target),
+        ),
+
+        GitJumpError::DetachedHead => (
+            "Detached HEAD".to_string(),
+            "specify the branch explicitly".to_string(),
+        ),
+
+        GitJumpError::Other(e) => ("Error".to_string(), e.to_string()),
+    };
+
+    eprintln!("{}", title.red().bold());
+    eprintln!("{}", body);
+}
+
+pub fn render_branch_deletion_res(res: &[BranchDeleteResult]) {
+    let (deleted, failed): (Vec<&BranchDeleteResult>, Vec<&BranchDeleteResult>) = res
+        .iter()
+        .partition(|r| matches!(r, BranchDeleteResult::Deleted(_)));
+
+    let deleted_names: Vec<&str> = deleted
+        .iter()
+        .filter_map(|r| match r {
+            BranchDeleteResult::Deleted(name) => Some(name.as_str()),
+            _ => None,
+        })
+        .collect();
+
+    let failures: Vec<(&str, &str)> = failed
+        .iter()
+        .filter_map(|r| match r {
+            BranchDeleteResult::Failed(name, reason) => Some((name.as_str(), reason.as_str())),
+            _ => None,
+        })
+        .collect();
+
+    match (deleted_names.is_empty(), failures.is_empty()) {
+        // full success
+        (false, true) => {
+            println!("Deleted {}", deleted_names.join(", "));
+        }
+        // full failure
+        (true, false) => {
+            eprintln!("{}", "Failed to delete branches".red().bold());
+            for (name, reason) in &failures {
+                eprintln!("   {}: {}", name, reason);
+            }
+        }
+        // partial
+        (false, false) => {
+            println!("Deleted {}", deleted_names.join(", "));
+            println!();
+            eprintln!("{}", "Failed to delete:".red().bold());
+            for (name, reason) in &failures {
+                eprintln!("    {}: {}", name, reason);
+            }
+        }
+        // empty input
+        (true, true) => unreachable!("clap should prevent this"),
+    }
+}
