@@ -1,16 +1,13 @@
 use crate::{
     git::{fetch_remote_branches, git_command},
-    list::{generate_ranked_list, prep_available_branches},
+    list::generate_ranked_list,
     storage::{delete_jump_data_branch, rename_jump_data_branch, update_branch_last_switch},
     types::{BranchDeleteResult, GitJumpError, Head, Model, RankedSearchList, get_active_worktree},
     utils::now,
 };
 
 pub fn list_sub_command(state: &Model) -> Vec<String> {
-    prep_available_branches(&state.branches, &state.worktrees)
-        .iter()
-        .map(|b| b.name.to_owned())
-        .collect()
+    state.branches.iter().map(|b| b.name.to_owned()).collect()
 }
 
 /// side-effect: update the JumpData file

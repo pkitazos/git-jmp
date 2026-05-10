@@ -14,7 +14,7 @@ use git_jump::{
     git::{GitDirs, list_worktrees, locate_git_repo_dirs, read_raw_git_branches},
     list::{prep_available_branches, prep_available_worktrees},
     storage::get_and_clean_branches,
-    types::{Branch, Model, ModifierKey, Worktree, get_active_worktree},
+    types::{Branch, BranchDeleteResult, Model, ModifierKey, Worktree, get_active_worktree},
     ui::{render_branch_deletion_res, render_branch_list, render_git_jump_error},
 };
 
@@ -122,14 +122,13 @@ pub fn main() -> Result<()> {
 
         Invocation::Sub(cmd) => match cmd {
             Commands::List => {
-                println!("[LIST]");
+                let active = get_active_worktree(&state.worktrees, &state.active_worktree);
                 let branches = list_sub_command(&state);
-                render_branch_list(branches);
+                render_branch_list(&active.head, &branches, &state.worktrees);
                 process::exit(0)
             }
 
             Commands::New { branch_name } => {
-                println!("[NEW]");
                 match new_sub_command(&state, branch_name) {
                     Ok(info) => {
                         println!("{}", info);
@@ -143,7 +142,6 @@ pub fn main() -> Result<()> {
             }
 
             Commands::Delete { branch_names } => {
-                println!("[DELETE]");
                 match delete_sub_command(
                     &state,
                     &branch_names
@@ -152,8 +150,11 @@ pub fn main() -> Result<()> {
                         .collect::<Vec<&str>>(),
                 ) {
                     Ok(res) => {
-                        render_branch_deletion_res(res);
-                        let exit_code = 0; // todo: compute this based on deletion results
+                        render_branch_deletion_res(&res);
+                        let exit_code = res
+                            .iter()
+                            .any(|r| matches!(r, BranchDeleteResult::Failed(..)))
+                            as i32;
                         process::exit(exit_code)
                     }
                     Err(err) => {
@@ -166,19 +167,16 @@ pub fn main() -> Result<()> {
             Commands::Rename {
                 current_name,
                 new_name,
-            } => {
-                println!("[RENAME]");
-                match rename_sub_command(&state, current_name.as_deref(), new_name) {
-                    Ok(info) => {
-                        println!("{}", info);
-                        process::exit(0)
-                    }
-                    Err(err) => {
-                        render_git_jump_error(err);
-                        process::exit(1)
-                    }
+            } => match rename_sub_command(&state, current_name.as_deref(), new_name) {
+                Ok(info) => {
+                    println!("{}", info);
+                    process::exit(0)
                 }
-            }
+                Err(err) => {
+                    render_git_jump_error(err);
+                    process::exit(1)
+                }
+            },
         },
     }
 

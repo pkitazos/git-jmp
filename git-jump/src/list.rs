@@ -12,20 +12,20 @@ struct MatchRecord<T> {
 }
 
 pub fn prep_available_branches(branches: &[Branch], worktrees: &[Worktree]) -> Vec<Branch> {
-    let mut available_branches: Vec<Branch> = {
-        // move checkout out into a separate scope so that it's dropped
-        // after we're done constructing the hashset
-        let checked_out: HashSet<&str> = worktrees.iter().map(|w| w.head.label()).collect();
+    let checked_out: HashSet<&str> = worktree_branch_names(worktrees);
 
-        branches
-            .iter()
-            .filter(|b| !checked_out.contains(b.name.as_str()))
-            .cloned()
-            .collect()
-    };
+    let mut available_branches: Vec<Branch> = branches
+        .iter()
+        .filter(|b| !checked_out.contains(b.name.as_str()))
+        .cloned()
+        .collect();
 
     available_branches.sort();
     available_branches
+}
+
+pub fn worktree_branch_names(worktrees: &[Worktree]) -> HashSet<&str> {
+    worktrees.iter().map(|w| w.head.label()).collect()
 }
 
 pub fn prep_available_worktrees(
@@ -34,7 +34,7 @@ pub fn prep_available_worktrees(
 ) -> Vec<Worktree> {
     let mut available_worktrees: Vec<Worktree> = worktrees
         .iter()
-        .filter(|w| !w.dir.iter().eq(active_worktree_dir))
+        .filter(|w| w.dir != active_worktree_dir)
         .cloned()
         .collect();
 
