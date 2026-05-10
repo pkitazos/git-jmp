@@ -15,17 +15,26 @@ use git_jump::{
     list::{prep_available_branches, prep_available_worktrees},
     storage::get_and_clean_branches,
     types::{
-        Branch, BranchDeleteResult, DATA_FILE, JUMP_FOLDER, MainWorktree, Model, ModifierKey,
-        Worktree, get_active_worktree,
+        Branch, BranchDeleteResult, JUMP_FOLDER, MainWorktree, Model, ModifierKey, Worktree,
+        get_active_worktree,
     },
     ui::{render_branch_deletion_res, render_branch_list, render_git_jump_error},
 };
 
 #[derive(Parser)]
-#[command(name = "git-jump")]
-#[command(version, about, long_about = None)]
-#[command(propagate_version = true)]
+#[command(
+    name = "git-jump",
+    version,
+    about,
+    propagate_version = true,
+    override_usage = "git jump [BRANCH] | git jump <COMMAND> | git jump"
+)]
 pub struct Cli {
+    /// Switches to the branch which fuzzy-matches the string
+    ///
+    /// When a single argument is provided, `<branch name>` can be just part of the name
+    /// - `git jump` will look for the best matching local branch
+    /// if `git switch` doesn't find an exact match.
     pub branch: Option<String>,
 
     #[command(subcommand)]
@@ -35,27 +44,29 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Commands {
     /// List all branches
-    #[clap(visible_alias("ls"))] // not sure how to actually use these?
+    #[clap(visible_alias("ls"))]
     List,
 
     #[command(arg_required_else_help = true)]
     /// Create a new branch called <branch_name>
     New { branch_name: String },
 
-    #[clap(visible_alias("rm"))]
-    #[command(arg_required_else_help = true)]
+    #[command(visible_alias("rm"), arg_required_else_help = true)]
     /// Delete listed branches
     Delete {
         #[arg(num_args = 1..)]
         branch_names: Vec<String>,
     },
 
-    #[clap(visible_alias("mv"))]
-    #[command(arg_required_else_help = true)]
+    #[command(
+        visible_alias("mv"),
+        arg_required_else_help = true,
+        override_usage = "git-jump rename [CURRENT_NAME] <NEW_NAME>"
+    )]
     /// Rename branch called <curr_name> to <new_name>
     Rename {
-        current_name: Option<String>,
-        new_name: String,
+        #[arg(num_args = 1..=2)]
+        names: Vec<String>,
     },
 }
 
@@ -167,19 +178,24 @@ pub fn main() -> Result<()> {
                 }
             }
 
-            Commands::Rename {
-                current_name,
-                new_name,
-            } => match rename_sub_command(&state, current_name.as_deref(), new_name) {
-                Ok(info) => {
-                    println!("{}", info);
-                    process::exit(0)
+            Commands::Rename { names } => {
+                let (current_name, new_name) = match names.as_slice() {
+                    [new_name] => (None, new_name),
+                    [current_name, new_name] => (Some(current_name.as_str()), new_name),
+                    _ => unreachable!("clap grammar prevents this"),
+                };
+
+                match rename_sub_command(&state, current_name, new_name) {
+                    Ok(info) => {
+                        println!("{}", info);
+                        process::exit(0)
+                    }
+                    Err(err) => {
+                        render_git_jump_error(err);
+                        process::exit(1)
+                    }
                 }
-                Err(err) => {
-                    render_git_jump_error(err);
-                    process::exit(1)
-                }
-            },
+            }
         },
     }
 
