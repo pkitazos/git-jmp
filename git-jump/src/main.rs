@@ -1,23 +1,14 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use std::{
-    fs::{self, File, OpenOptions},
-    io::Write,
-    path::PathBuf,
-    process,
-};
+use std::process;
 
 use git_jump::{
     app::InteractiveApp,
     command::{delete_sub_command, jump_to, list_sub_command, new_sub_command, rename_sub_command},
-    git::{GitDirs, list_worktrees, locate_git_repo_dirs, read_raw_git_branches},
     list::{prep_available_branches, prep_available_worktrees},
-    storage::get_and_clean_branches,
-    types::{
-        Branch, BranchDeleteResult, JUMP_FOLDER, MainWorktree, Model, ModifierKey, Worktree,
-        get_active_worktree,
-    },
+    system::init,
+    types::{BranchDeleteResult, Model, ModifierKey, get_active_worktree},
     ui::{render_branch_deletion_res, render_branch_list, render_git_jump_error},
 };
 
@@ -203,62 +194,3 @@ pub fn main() -> Result<()> {
 }
 
 // ---
-
-fn ensure_jump_folder_exists(main_worktree: &MainWorktree) -> Result<()> {
-    let jump_store_dir = main_worktree.jump_dir();
-    if !jump_store_dir.exists() {
-        if let Err(e) = fs::create_dir(jump_store_dir) {
-            return Err(anyhow!("Couldn't create {} dir: {}", JUMP_FOLDER, e));
-        };
-
-        let mut file = OpenOptions::new()
-            .append(true)
-            .open(main_worktree.git_dir().join("info").join("exclude"))
-            .unwrap();
-
-        if let Err(e) = writeln!(file, "\n{}", JUMP_FOLDER) {
-            return Err(anyhow!("Couldn't write to file: {}", e));
-        }
-    }
-
-    let store_data_file = main_worktree.data_file();
-    if !store_data_file.exists() {
-        let mut file = File::create(store_data_file)?;
-        if let Err(e) = file.write_all(b"{}") {
-            return Err(anyhow!("Couldn't write to file: {}", e));
-        }
-    }
-
-    Ok(())
-}
-
-struct InitData {
-    main_worktree: MainWorktree,
-    active_worktree: PathBuf,
-    branches: Vec<Branch>,
-    worktrees: Vec<Worktree>,
-}
-
-fn init() -> Result<InitData> {
-    let GitDirs {
-        main_worktree,
-        active_worktree,
-    } = locate_git_repo_dirs()?;
-
-    ensure_jump_folder_exists(&main_worktree)?;
-
-    let raw_git_branches = read_raw_git_branches()?;
-
-    let branch_names: Vec<&str> = raw_git_branches.iter().map(|s| s.as_str()).collect();
-
-    let worktrees = list_worktrees()?;
-
-    let branches = get_and_clean_branches(&main_worktree.data_file(), &branch_names)?;
-
-    Ok(InitData {
-        main_worktree,
-        active_worktree,
-        branches,
-        worktrees,
-    })
-}

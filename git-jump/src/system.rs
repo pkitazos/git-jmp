@@ -1,9 +1,19 @@
 use anyhow::{Context, Result, anyhow};
 use regex::Regex;
 
-use std::process::Command;
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+use std::{
+    fs::{self, File},
+    io::Write,
+};
 
 use std::sync::LazyLock;
+
+use crate::git::{RawWorktree, locate_git_repo_dirs, read_raw_git_branches, read_raw_worktrees};
+use crate::storage::{clean_and_save_jump_data, load_jump_data};
+use crate::types::{Branch, Head, JUMP_FOLDER, MainWorktree, Worktree};
 
 // so the reason these can't just be constant values is that initialising a Regex
 // only happens at runtime, because for potentially very large patterns constructing the NFA/DF
@@ -15,35 +25,112 @@ fn semver_exact_pattern(haystack: &str) -> bool {
     RE.is_match(haystack)
 }
 
+// todo: figure out where this should be called
 pub fn fetch_latest_version() -> Result<String> {
-    // ! don't worry about this still querying npm for now
-    // ! this will eventually just be an API call to fetch the latest GitHub release
-    // ! as that will be the new source of truth
-    let output = Command::new("npm")
-        .arg("info")
-        .arg("@pkitazos/git-jump")
-        .arg("dist-tags.latest")
-        .output()?;
+    let response: serde_json::Value =
+        ureq::get("https://api.github.com/repos/pkitazos/git-jump/releases/latest")
+            .header("User-Agent", "git-jump")
+            .call()
+            .context("failed to fetch latest release from GitHub")?
+            .body_mut()
+            .read_json()
+            .context("failed to parse GitHub response")?;
 
-    if !output.status.success() {
-        // the reason we're using the lossy variant here is because otherwise
-        // we might end up bubbling up a conversion error which just adds noise.
-        // If npm ever returns non-valid utf8, then we have bigger problems to deal with
-        let err_msg = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!("npm exited with {}: {}", output.status, err_msg));
-    }
+    let tag = response["tag_name"]
+        .as_str()
+        .ok_or_else(|| anyhow!("no tag_name in GitHub response"))?;
 
-    let version =
-        String::from_utf8(output.stdout).context("npm returned non-UTF-8 bytes on stdout")?;
-    // trimming the Vec<u8> directly also works but that requires taking ownership
-    // and then having the method borrow it and re-allocated a new vector on the heap
-    // `String::from_utf8` just "re-labels" the same buffer in memory as a String if it contains
-    // only valid utf8 characters
-    let version = version.trim();
+    let version = tag.strip_prefix('v').unwrap_or(tag);
 
     if semver_exact_pattern(version) {
         Ok(version.to_owned())
     } else {
-        Err(anyhow!("the returned string doesn't contain a version"))
+        Err(anyhow!("tag '{}' is not a valid semver version", tag))
     }
+}
+
+pub struct InitData {
+    pub main_worktree: MainWorktree,
+    pub active_worktree: PathBuf,
+    pub branches: Vec<Branch>,
+    pub worktrees: Vec<Worktree>,
+}
+
+pub fn init() -> Result<InitData> {
+    let dirs = locate_git_repo_dirs()?;
+
+    ensure_jump_folder_exists(&dirs.main_worktree)?;
+
+    let branch_names = read_raw_git_branches()?;
+    let raw_worktrees = read_raw_worktrees()?;
+
+    let mut jump_data = load_jump_data(&dirs.main_worktree.data_file())?;
+    clean_and_save_jump_data(
+        &dirs.main_worktree.data_file(),
+        &mut jump_data,
+        &branch_names,
+    )?;
+
+    let branches = construct_branches(&branch_names, &jump_data);
+    let worktrees = construct_worktrees(raw_worktrees, &jump_data);
+
+    Ok(InitData {
+        main_worktree: dirs.main_worktree,
+        active_worktree: dirs.active_worktree,
+        branches,
+        worktrees,
+    })
+}
+
+fn ensure_jump_folder_exists(main_worktree: &MainWorktree) -> Result<()> {
+    let jump_store_dir = main_worktree.jump_dir();
+    if !jump_store_dir.exists() {
+        if let Err(e) = fs::create_dir(jump_store_dir) {
+            return Err(anyhow!("Couldn't create {} dir: {}", JUMP_FOLDER, e));
+        };
+
+        let mut file = fs::OpenOptions::new()
+            .append(true)
+            .open(main_worktree.git_dir().join("info").join("exclude"))
+            .unwrap();
+
+        if let Err(e) = writeln!(file, "\n{}", JUMP_FOLDER) {
+            return Err(anyhow!("Couldn't write to file: {}", e));
+        }
+    }
+
+    let store_data_file = main_worktree.data_file();
+    if !store_data_file.exists() {
+        let mut file = File::create(store_data_file)?;
+        if let Err(e) = file.write_all(b"{}") {
+            return Err(anyhow!("Couldn't write to file: {}", e));
+        }
+    }
+
+    Ok(())
+}
+
+fn construct_branches(names: &[String], jump_data: &HashMap<String, u64>) -> Vec<Branch> {
+    names
+        .iter()
+        .map(|b| Branch {
+            name: b.to_string(),
+            last_switch: jump_data.get(b).copied().unwrap_or(0u64),
+        })
+        .collect()
+}
+
+fn construct_worktrees(raw: Vec<RawWorktree>, jump_data: &HashMap<String, u64>) -> Vec<Worktree> {
+    raw.into_iter()
+        .map(|w| Worktree {
+            dir: w.dir,
+            head: match w.branch {
+                Some(name) => Head::Branch(Branch {
+                    last_switch: jump_data.get(&name).copied().unwrap_or(0u64),
+                    name,
+                }),
+                None => Head::Detached { sha: w.sha },
+            },
+        })
+        .collect()
 }
