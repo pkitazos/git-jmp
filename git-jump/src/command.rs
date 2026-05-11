@@ -22,7 +22,6 @@ pub fn new_sub_command(state: &Model, branch_name: &str) -> Result<String, GitJu
 }
 
 /// side-effect: update the JumpData file
-/// ! does not support proper renaming
 pub fn rename_sub_command(
     state: &Model,
     src: Option<&str>,

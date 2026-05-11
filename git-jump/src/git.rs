@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, anyhow};
 use std::{path::PathBuf, process::Command};
 
-use crate::types::{Branch, Head, MainWorktree, Worktree};
+use crate::types::MainWorktree;
 
 pub struct GitDirs {
     pub main_worktree: MainWorktree,
@@ -32,9 +32,16 @@ pub fn read_raw_git_branches() -> Result<Vec<String>> {
         .map(|s| s.to_owned())
         .collect();
 
-    return Ok(branches);
+    Ok(branches)
 }
-pub fn list_worktrees() -> Result<Vec<Worktree>> {
+
+pub struct RawWorktree {
+    pub dir: PathBuf,
+    pub branch: Option<String>,
+    pub sha: String,
+}
+
+pub fn read_raw_worktrees() -> Result<Vec<RawWorktree>> {
     let stdout = git_command("worktree", &["list", "--porcelain"])?;
 
     stdout
@@ -44,7 +51,7 @@ pub fn list_worktrees() -> Result<Vec<Worktree>> {
             let entry_lines: Vec<&str> = r.lines().collect();
             parse_worktree_entry(&entry_lines)
         })
-        .collect::<Result<Vec<Worktree>>>()
+        .collect::<Result<Vec<RawWorktree>>>()
 }
 
 pub fn fetch_remote_branches() -> Result<Vec<String>> {
@@ -65,7 +72,7 @@ pub fn fetch_remote_branches() -> Result<Vec<String>> {
     Ok(branches)
 }
 
-fn parse_worktree_entry(lines: &[&str]) -> Result<Worktree> {
+fn parse_worktree_entry(lines: &[&str]) -> Result<RawWorktree> {
     let mut dir: Option<PathBuf> = None;
     let mut sha: Option<&str> = None;
     let mut branch: Option<&str> = None;
@@ -97,18 +104,15 @@ fn parse_worktree_entry(lines: &[&str]) -> Result<Worktree> {
 
     match (bare, detached, sha, branch, dir) {
         (true, _, _, _, _) => Err(anyhow!("Bare repo not supported")),
-        (false, true, Some(sha), None, Some(dir)) => Ok(Worktree {
+        (false, true, Some(sha), None, Some(dir)) => Ok(RawWorktree {
             dir,
-            head: Head::Detached {
-                sha: sha.to_owned(),
-            },
+            branch: None,
+            sha: sha.to_string(),
         }),
-        (false, false, _, Some(name), Some(dir)) => Ok(Worktree {
+        (false, false, Some(sha), Some(name), Some(dir)) => Ok(RawWorktree {
             dir,
-            head: Head::Branch(Branch {
-                name: name.to_string(),
-                last_switch: 0u64, // ! this is wrong
-            }),
+            sha: sha.to_string(),
+            branch: Some(name.to_string()),
         }),
         _ => Err(anyhow!("Malformed worktree record: {:?}", lines)),
     }

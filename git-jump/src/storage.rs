@@ -5,20 +5,8 @@ use std::{
     path::Path,
 };
 
-use crate::types::Branch;
 use anyhow::{Context, Result};
 use serde::Deserialize;
-
-pub fn get_and_clean_branches(data_file: &Path, branch_names: &[&str]) -> Result<Vec<Branch>> {
-    let mut jump_data: BranchCollection = load_jump_data(&data_file)?;
-
-    keep_branches(&mut jump_data, branch_names);
-    let reconciled_branches = reconcile_branches(&jump_data, branch_names);
-
-    save_branches_jump_data(&data_file, &jump_data)?;
-
-    Ok(reconciled_branches)
-}
 
 type BranchCollection = HashMap<String, u64>;
 
@@ -52,6 +40,48 @@ pub fn delete_jump_data_branch(data_file: &Path, branch_names: &[&str]) -> Resul
     save_branches_jump_data(&data_file, &jump_data)
 }
 
+/// Loads jump data from disk, normalising the on-disk format if needed.
+///
+/// Supports both:
+/// - the legacy V1 format (`{ "branch": { "name": <string>, "lastSwitch": <timestamp> } }`)
+/// - the current V2 format (`{ "branch": <timestamp> }`)
+///
+/// When a V1 file is encountered, the original is copied to `<data_file>.v1.bak`
+/// before the caller writes it back in V2 form.
+pub fn load_jump_data(data_file: &Path) -> Result<HashMap<String, u64>> {
+    let file = File::open(data_file)?;
+    let reader = BufReader::new(file);
+
+    let branches: OnDisk = serde_json::from_reader(reader)
+        .with_context(|| format!("failed to deserialize jump data at {}", data_file.display()))?;
+
+    match branches {
+        OnDisk::V2(_) => {}
+        OnDisk::V1(_) => {
+            // This is the side-effect
+            create_backup(data_file)?;
+        }
+    };
+
+    Ok(parse_from_disk(branches))
+}
+
+pub fn clean_and_save_jump_data(
+    data_file: &Path,
+    jump_data: &mut HashMap<String, u64>,
+    valid_branch_names: &[String],
+) -> Result<()> {
+    keep_branches(
+        jump_data,
+        &valid_branch_names
+            .iter()
+            .map(|b| b.as_str())
+            .collect::<Vec<_>>(),
+    );
+    save_branches_jump_data(&data_file, jump_data)?;
+    Ok(())
+}
+
 // --- actual file I/O
 
 #[derive(Deserialize)]
@@ -75,32 +105,6 @@ fn parse_from_disk(data: OnDisk) -> BranchCollection {
             .map(|(k, v)| (k, v.last_switch))
             .collect::<BranchCollection>(),
     }
-}
-
-/// Loads jump data from disk, normalising the on-disk format if needed.
-///
-/// Supports both:
-/// - the legacy V1 format (`{ "branch": { "name": <string>, "lastSwitch": <timestamp> } }`)
-/// - the current V2 format (`{ "branch": <timestamp> }`)
-///
-/// When a V1 file is encountered, the original is copied to `<data_file>.v1.bak`
-/// before the caller writes it back in V2 form.
-fn load_jump_data(data_file: &Path) -> Result<BranchCollection> {
-    let file = File::open(data_file)?;
-    let reader = BufReader::new(file);
-
-    let branches: OnDisk = serde_json::from_reader(reader)
-        .with_context(|| format!("failed to deserialize jump data at {}", data_file.display()))?;
-
-    match branches {
-        OnDisk::V2(_) => {}
-        OnDisk::V1(_) => {
-            // This is the aforementioned side-effect
-            create_backup(data_file)?;
-        }
-    };
-
-    Ok(parse_from_disk(branches))
 }
 
 fn create_backup(data_file: &Path) -> Result<()> {
@@ -129,16 +133,6 @@ fn save_branches_jump_data(data_file: &Path, jump_data: &BranchCollection) -> Re
 }
 
 // pure utils
-
-fn reconcile_branches(jump_data: &BranchCollection, branch_names: &[&str]) -> Vec<Branch> {
-    branch_names
-        .iter()
-        .map(|&branch_name| Branch {
-            name: branch_name.to_owned(),
-            last_switch: jump_data.get(branch_name).copied().unwrap_or(0u64),
-        })
-        .collect::<Vec<Branch>>()
-}
 
 fn set_branch_timestamp(jump_data: &mut BranchCollection, name: &str, last_switch: u64) {
     jump_data.insert(name.to_owned(), last_switch);
