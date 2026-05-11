@@ -1,11 +1,22 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use crossterm::{
+    ExecutableCommand,
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+};
+use ratatui::{Terminal, backend::CrosstermBackend};
 
-use std::process;
+use std::{
+    io::stdout,
+    process::{self, ExitCode},
+};
 
 use git_jump::{
-    app::InteractiveApp,
-    command::{delete_sub_command, jump_to, list_sub_command, new_sub_command, rename_sub_command},
+    app::{self, InteractiveApp},
+    command::{
+        delete_sub_command, jump_to, list_sub_command, new_sub_command, rename_sub_command,
+        switch_to_head,
+    },
     list::{prep_available_branches, prep_available_worktrees},
     system::init,
     types::{BranchDeleteResult, Model, ModifierKey, get_active_worktree},
@@ -78,7 +89,27 @@ impl Cli {
     }
 }
 
-pub fn main() -> Result<()> {
+struct TerminalGuard;
+
+impl TerminalGuard {
+    fn enter() -> Result<Self> {
+        stdout().execute(EnterAlternateScreen)?;
+        enable_raw_mode()?;
+        let backend = CrosstermBackend::new(stdout());
+        let mut terminal = Terminal::new(backend)?;
+        terminal.clear()?;
+        Ok(TerminalGuard)
+    }
+}
+
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        let _ = disable_raw_mode();
+        let _ = stdout().execute(LeaveAlternateScreen);
+    }
+}
+
+pub fn main() -> Result<ExitCode> {
     let cli = Cli::parse();
 
     let data = init()?;
@@ -105,23 +136,48 @@ pub fn main() -> Result<()> {
 
     match &cli.into_invocation() {
         Invocation::Interactive => {
+            let _guard = TerminalGuard::enter()?;
+            let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
+
             let w = get_active_worktree(&state.worktrees, &state.active_worktree);
 
             let branches = prep_available_branches(&state.branches, &state.worktrees);
             let worktrees = prep_available_worktrees(&state.worktrees, &state.active_worktree);
 
             let app = InteractiveApp::new(w.head.to_owned(), branches, worktrees);
-            ratatui::run(|terminal| app.run(terminal))?;
+            let res = app.run(&mut terminal)?;
+
+            match res {
+                app::AppExitStatus::StayedOn(head) => {
+                    println!("Staying on {}", head.label())
+                }
+                app::AppExitStatus::SwitchedTo(head) => match switch_to_head(&head) {
+                    Ok(msg) => println!("{}", msg),
+                    Err(err) => {
+                        render_git_jump_error(err);
+                        return Ok(ExitCode::FAILURE);
+                    }
+                },
+                app::AppExitStatus::LocatedAt(worktree) => {
+                    let dir = worktree.dir.to_string_lossy();
+                    println!(
+                        "{} is checked out at {}\nTo switch: cd {}",
+                        worktree.head.label(),
+                        dir,
+                        dir,
+                    );
+                }
+                app::AppExitStatus::Cancelled => {}
+            }
         }
 
         Invocation::JumpTo(branch) => match jump_to(&state, branch, &[]) {
             Ok(info) => {
                 println!("{}", info);
-                process::exit(0)
             }
             Err(err) => {
                 render_git_jump_error(err);
-                process::exit(1)
+                return Ok(ExitCode::FAILURE);
             }
         },
 
@@ -130,18 +186,16 @@ pub fn main() -> Result<()> {
                 let active = get_active_worktree(&state.worktrees, &state.active_worktree);
                 let branches = list_sub_command(&state);
                 render_branch_list(&active.head, &branches, &state.worktrees);
-                process::exit(0)
             }
 
             Commands::New { branch_name } => {
                 match new_sub_command(&state, branch_name) {
                     Ok(info) => {
                         println!("{}", info);
-                        process::exit(0)
                     }
                     Err(err) => {
                         render_git_jump_error(err);
-                        process::exit(1)
+                        return Ok(ExitCode::FAILURE);
                     }
                 };
             }
@@ -164,7 +218,7 @@ pub fn main() -> Result<()> {
                     }
                     Err(err) => {
                         render_git_jump_error(err);
-                        process::exit(1)
+                        return Ok(ExitCode::FAILURE);
                     }
                 }
             }
@@ -179,18 +233,17 @@ pub fn main() -> Result<()> {
                 match rename_sub_command(&state, current_name, new_name) {
                     Ok(info) => {
                         println!("{}", info);
-                        process::exit(0)
                     }
                     Err(err) => {
                         render_git_jump_error(err);
-                        process::exit(1)
+                        return Ok(ExitCode::FAILURE);
                     }
                 }
             }
         },
     }
 
-    Ok(())
+    Ok(ExitCode::SUCCESS)
 }
 
 // ---

@@ -54,6 +54,13 @@ pub enum InputMode {
     Editing,
 }
 
+pub enum AppExitStatus {
+    Cancelled,
+    StayedOn(Head),
+    SwitchedTo(Head),
+    LocatedAt(Worktree),
+}
+
 impl InteractiveApp {
     pub fn new(head: Head, branches: Vec<Branch>, worktrees: Vec<Worktree>) -> Self {
         Self {
@@ -138,7 +145,7 @@ impl InteractiveApp {
         self.character_index = 0;
     }
 
-    pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+    pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<AppExitStatus> {
         let mut list_state = ListState::default();
         list_state.select_first();
 
@@ -148,7 +155,9 @@ impl InteractiveApp {
                 match self.input_mode {
                     InputMode::Normal => match (key.code, key.modifiers) {
                         (KeyCode::Char('q'), KeyModifiers::NONE)
-                        | (KeyCode::Char('c'), KeyModifiers::CONTROL) => return Ok(()),
+                        | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+                            return Ok(AppExitStatus::Cancelled);
+                        }
 
                         (KeyCode::Char('i'), KeyModifiers::NONE) => {
                             self.input_mode = InputMode::Editing
@@ -160,12 +169,58 @@ impl InteractiveApp {
                         (KeyCode::Char('k'), KeyModifiers::NONE)
                         | (KeyCode::Up, KeyModifiers::NONE) => list_state.select_previous(),
 
+                        (KeyCode::Enter, KeyModifiers::NONE) => {
+                            let mut idx = list_state.selected().unwrap_or(0);
+
+                            if idx == 0 {
+                                // short-circuit, staying on X
+                                return Ok(AppExitStatus::StayedOn(self.head));
+                            }
+
+                            terminal.clear()?;
+                            match &self.view {
+                                SearchView::Idle => {
+                                    idx = idx.saturating_sub(1);
+                                    if idx < self.branches.len() {
+                                        // jump to branch
+
+                                        return Ok(AppExitStatus::SwitchedTo(Head::Branch(
+                                            self.branches[idx].clone(),
+                                        )));
+                                    } else {
+                                        idx = idx.saturating_sub(self.branches.len() + 1);
+                                        // cd into worktree
+                                        return Ok(AppExitStatus::LocatedAt(
+                                            self.worktrees[idx].clone(),
+                                        ));
+                                    }
+                                }
+                                SearchView::Filtered { list, .. } => {
+                                    if idx < list.available.len() {
+                                        // jump to branch
+
+                                        return Ok(AppExitStatus::SwitchedTo(
+                                            list.available[idx].clone(),
+                                        ));
+                                    } else {
+                                        idx = idx.saturating_sub(self.branches.len() + 1);
+                                        // cd into worktree
+                                        return Ok(AppExitStatus::LocatedAt(
+                                            list.worktrees[idx].clone(),
+                                        ));
+                                    }
+                                }
+                            };
+                        }
+
                         _ => {}
                     },
 
                     InputMode::Editing if key.kind == KeyEventKind::Press => {
                         match (key.code, key.modifiers) {
-                            (KeyCode::Char('c'), KeyModifiers::CONTROL) => return Ok(()),
+                            (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+                                return Ok(AppExitStatus::Cancelled);
+                            }
 
                             // --- cursor movement ---
 
