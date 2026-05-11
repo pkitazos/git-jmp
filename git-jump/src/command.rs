@@ -84,6 +84,11 @@ pub fn jump_to(state: &Model, target: &str, args: &[&str]) -> Result<String, Git
         }
     }
 
+    if target == "-" {
+        // do the thing
+    }
+
+    // this seems like a bug? what happened to target??
     let err = match git_command("switch", &args) {
         Ok(msg) => return Ok(msg),
         Err(e) => e,
@@ -118,11 +123,11 @@ pub fn jump_to(state: &Model, target: &str, args: &[&str]) -> Result<String, Git
         });
     }
 
-    return switch_to_list_item(&available[0]);
+    return switch_to_head(&available[0]);
 }
 
 /// side-effect: execute `git switch`
-pub fn switch_to_list_item(head: &Head) -> Result<String, GitJumpError> {
+pub fn switch_to_head(head: &Head) -> Result<String, GitJumpError> {
     match head {
         Head::Detached { sha } => Ok(format!("Staying on {}", sha)),
         Head::Branch(b) => match git_command("switch", &[&b.name]) {
