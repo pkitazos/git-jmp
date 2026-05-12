@@ -58,6 +58,8 @@ pub enum Commands {
     Delete {
         #[arg(num_args = 1..)]
         branch_names: Vec<String>,
+        #[arg(short, long)]
+        force: bool,
     },
 
     #[command(
@@ -134,7 +136,7 @@ pub fn main() -> Result<ExitCode> {
         interactive_state: None,
     };
 
-    match &cli.into_invocation() {
+    match cli.into_invocation() {
         Invocation::Interactive => {
             let _guard = TerminalGuard::enter()?;
             let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
@@ -179,7 +181,7 @@ pub fn main() -> Result<ExitCode> {
             }
         }
 
-        Invocation::JumpTo(branch) => match jump_to(&state, branch) {
+        Invocation::JumpTo(branch) => match jump_to(&state, &branch) {
             Ok(info) => {
                 println!("{}", info);
             }
@@ -197,7 +199,7 @@ pub fn main() -> Result<ExitCode> {
             }
 
             Commands::New { branch_name } => {
-                match new_sub_command(&state, branch_name) {
+                match new_sub_command(&state, &branch_name) {
                     Ok(info) => {
                         println!("{}", info);
                     }
@@ -208,13 +210,17 @@ pub fn main() -> Result<ExitCode> {
                 };
             }
 
-            Commands::Delete { branch_names } => {
+            Commands::Delete {
+                branch_names,
+                force,
+            } => {
                 match delete_sub_command(
                     &state,
                     &branch_names
                         .iter()
                         .map(|b| b.as_str())
                         .collect::<Vec<&str>>(),
+                    force,
                 ) {
                     Ok(res) => {
                         render_branch_deletion_res(&res);
