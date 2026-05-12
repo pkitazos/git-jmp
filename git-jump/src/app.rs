@@ -32,6 +32,7 @@ pub struct InteractiveApp {
     pub view: SearchView,
 }
 
+#[derive(Clone)]
 pub enum SearchView {
     Idle,
     Filtered {
@@ -68,6 +69,7 @@ enum BranchIndex {
     Bare,
 }
 
+#[derive(Debug)]
 pub enum AppExitStatus {
     Cancelled,
     StayedOnDetached,
@@ -106,7 +108,11 @@ impl InteractiveApp {
         self.move_cursor_right_n(1);
     }
 
-    fn set_search(&mut self, new_search: String) {
+    fn set_search(&mut self, new_search: String) -> bool {
+        if self.view.search_string() == new_search.as_str() {
+            return false;
+        }
+
         self.view = if new_search.is_empty() {
             SearchView::Idle
         } else {
@@ -115,13 +121,15 @@ impl InteractiveApp {
                 search_string: new_search,
             }
         };
+        true
     }
 
-    fn enter_char(&mut self, new_char: char) {
+    fn enter_char(&mut self, new_char: char) -> bool {
         let mut s = self.view.search_string().to_string();
         s.insert(self.byte_index(&s), new_char);
-        self.set_search(s);
+        let search_changed = self.set_search(s);
         self.move_cursor_right();
+        search_changed
     }
 
     /// Returns the byte index based on the character position.
@@ -135,15 +143,16 @@ impl InteractiveApp {
             .unwrap_or(s.len())
     }
 
-    fn delete_char(&mut self) {
+    fn delete_char(&mut self) -> bool {
         let s = self.view.search_string();
         if self.character_index == 0 || s.is_empty() {
-            return;
+            return false;
         }
         let before = s.chars().take(self.character_index - 1);
         let after = s.chars().skip(self.character_index);
-        self.set_search(before.chain(after).collect());
+        let search_changed = self.set_search(before.chain(after).collect());
         self.move_cursor_left();
+        search_changed
     }
 
     fn clamp_cursor(&self, s: &str, new_cursor_pos: usize) -> usize {
@@ -191,6 +200,21 @@ impl InteractiveApp {
         }
     }
 
+    fn make_selection(&mut self, list_state: &ListState) -> Result<AppExitStatus> {
+        let idx = list_state.selected().unwrap_or(0);
+        let row = self
+            .rows()
+            .into_iter()
+            .nth(idx)
+            .context("selected branch no longer available")?;
+
+        return Ok(match row {
+            Row::Current(_) => AppExitStatus::StayedOnDetached,
+            Row::Branch { branch, .. } => AppExitStatus::Selected(branch),
+            Row::Worktree(worktree) => AppExitStatus::LocatedAt(worktree),
+        });
+    }
+
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<AppExitStatus> {
         let mut list_state = ListState::default();
         list_state.select_first();
@@ -216,18 +240,7 @@ impl InteractiveApp {
                         | (KeyCode::Up, KeyModifiers::NONE) => list_state.select_previous(),
 
                         (KeyCode::Enter, KeyModifiers::NONE) => {
-                            let idx = list_state.selected().unwrap_or(0);
-                            let row = self
-                                .rows()
-                                .into_iter()
-                                .nth(idx)
-                                .context("selected branch no longer available")?;
-
-                            return Ok(match row {
-                                Row::Current(_) => AppExitStatus::StayedOnDetached,
-                                Row::Branch { branch, .. } => AppExitStatus::Selected(branch),
-                                Row::Worktree(worktree) => AppExitStatus::LocatedAt(worktree),
-                            });
+                            return self.make_selection(&list_state);
                         }
 
                         _ => {}
@@ -294,36 +307,44 @@ impl InteractiveApp {
                                 let before = self.view.search_string().chars().take(stop);
                                 let after =
                                     self.view.search_string().chars().skip(self.character_index);
-                                self.set_search(before.chain(after).collect());
+                                if self.set_search(before.chain(after).collect()) {
+                                    list_state.select_first();
+                                }
                                 self.character_index = stop;
                             }
 
                             // Delete entire line
                             (KeyCode::Char('w'), KeyModifiers::CONTROL) => {
-                                self.set_search("".to_string());
+                                if self.set_search("".to_string()) {
+                                    list_state.select_first();
+                                }
                                 self.reset_cursor();
                             }
 
                             // Delete from cursor to end of line
                             (KeyCode::Char('k'), KeyModifiers::CONTROL) => {
-                                self.set_search(
+                                if self.set_search(
                                     self.view
                                         .search_string()
                                         .chars()
                                         .take(self.character_index)
                                         .collect(),
-                                );
+                                ) {
+                                    list_state.select_first();
+                                }
                             }
 
                             // Delete from cursor to beginning of line
                             (KeyCode::Char('u'), KeyModifiers::CONTROL) => {
-                                self.set_search(
+                                if self.set_search(
                                     self.view
                                         .search_string()
                                         .chars()
                                         .skip(self.character_index)
                                         .collect(),
-                                );
+                                ) {
+                                    list_state.select_first();
+                                }
                                 self.reset_cursor();
                             }
 
@@ -341,24 +362,30 @@ impl InteractiveApp {
                                         .search_string()
                                         .chars()
                                         .skip(self.character_index + 1);
-                                    self.set_search(before.chain(after).collect());
+                                    if self.set_search(before.chain(after).collect()) {
+                                        list_state.select_first();
+                                    }
                                 }
                             }
 
                             // Backspace
                             (KeyCode::Backspace, KeyModifiers::NONE) => {
-                                self.delete_char();
+                                if self.delete_char() {
+                                    list_state.select_first();
+                                }
                             }
 
                             // --- text input ---
                             (KeyCode::Char(to_insert), KeyModifiers::NONE)
                             | (KeyCode::Char(to_insert), KeyModifiers::SHIFT) => {
-                                self.enter_char(to_insert);
+                                if self.enter_char(to_insert) {
+                                    list_state.select_first();
+                                }
                             }
 
                             // --- mode / confirm ---
                             (KeyCode::Enter, KeyModifiers::NONE) => {
-                                // TODO: confirm selection
+                                return self.make_selection(&list_state);
                             }
 
                             (KeyCode::Esc, KeyModifiers::NONE) => {
