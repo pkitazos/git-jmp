@@ -58,6 +58,12 @@ pub struct Branch {
     pub last_switch: u64,
 }
 
+impl Branch {
+    pub fn is_head(&self, head: &Head) -> bool {
+        self.name == head.label()
+    }
+}
+
 impl PartialOrd for Branch {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         Some(self.cmp(other))
@@ -153,7 +159,7 @@ impl Ord for Head {
 #[derive(Clone)]
 pub struct RankedSearchList {
     /// all branches you can jump to that match the search input
-    pub available: Vec<Head>,
+    pub available: Vec<Branch>,
     /// all worktrees that match the search input
     pub worktrees: Vec<Worktree>,
 }

@@ -8,6 +8,7 @@
 - [ ] `git jump -` should work like `git switch -` it should not fuzzy match on some branch
 - [x] should be able to call `--version / -v` and `--help / -h` from anywhere on the system (comes by default with clap)
 - [ ] finish wiring up interactive mode
+  - [ ] when idle, branches should still be ranked, except head is pinned
   - [ ] in interactive mode you should be able to actually press `Enter` to jump to a branch (literally the whole point)
   - [ ] if you're hovering a worktree entry, `Enter` should cd you into that directory (maybe we add a little status message about this)
   - [ ] if you're in normal mode and switch to interactive mode the highlighted line should reset (or maybe just hide?)

@@ -15,7 +15,7 @@ use git_jump::{
     app::{self, InteractiveApp},
     command::{
         delete_sub_command, jump_to, list_sub_command, new_sub_command, rename_sub_command,
-        switch_to_head,
+        switch_and_record,
     },
     list::{prep_available_branches, prep_available_worktrees},
     system::init,
@@ -139,25 +139,33 @@ pub fn main() -> Result<ExitCode> {
             let _guard = TerminalGuard::enter()?;
             let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
 
-            let w = get_active_worktree(&state.worktrees, &state.active_worktree);
+            let active = get_active_worktree(&state.worktrees, &state.active_worktree);
 
             let branches = prep_available_branches(&state.branches, &state.worktrees);
             let worktrees = prep_available_worktrees(&state.worktrees, &state.active_worktree);
 
-            let app = InteractiveApp::new(w.head.to_owned(), branches, worktrees);
+            let app = InteractiveApp::new(active.head.to_owned(), branches, worktrees);
             let res = app.run(&mut terminal)?;
 
             match res {
-                app::AppExitStatus::StayedOn(head) => {
-                    println!("Staying on {}", head.label())
+                app::AppExitStatus::StayedOnDetached => {
+                    println!("Staying on {}", active.head.label())
                 }
-                app::AppExitStatus::SwitchedTo(head) => match switch_to_head(&head) {
-                    Ok(msg) => println!("{}", msg),
-                    Err(err) => {
-                        render_git_jump_error(err);
-                        return Ok(ExitCode::FAILURE);
+                app::AppExitStatus::Selected(b) => {
+                    match switch_and_record(&state.main_worktree.data_file(), &b.name) {
+                        Ok(msg) => {
+                            if b.is_head(&active.head) {
+                                println!("Staying on {}", active.head.label())
+                            } else {
+                                println!("{}", msg)
+                            }
+                        }
+                        Err(err) => {
+                            render_git_jump_error(err);
+                            return Ok(ExitCode::FAILURE);
+                        }
                     }
-                },
+                }
                 app::AppExitStatus::LocatedAt(worktree) => {
                     let dir = worktree.dir.to_string_lossy();
                     println!(
@@ -171,7 +179,7 @@ pub fn main() -> Result<ExitCode> {
             }
         }
 
-        Invocation::JumpTo(branch) => match jump_to(&state, branch, &[]) {
+        Invocation::JumpTo(branch) => match jump_to(&state, branch) {
             Ok(info) => {
                 println!("{}", info);
             }

@@ -6,7 +6,7 @@ use crate::{
     types::{Branch, Head, RankedSearchList, Worktree},
     ui::BRANCH_INDEX_PADD,
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use crossterm::event::{self, KeyCode, KeyEventKind, KeyModifiers};
 use ratatui::{
     DefaultTerminal, Frame,
@@ -54,10 +54,24 @@ pub enum InputMode {
     Editing,
 }
 
+#[derive(Clone)]
+enum Row {
+    Current(Head),
+    Branch { branch: Branch, index: BranchIndex },
+    Worktree(Worktree),
+}
+
+#[derive(Clone)]
+enum BranchIndex {
+    QuickSelect(usize),
+    Head,
+    Bare,
+}
+
 pub enum AppExitStatus {
     Cancelled,
-    StayedOn(Head),
-    SwitchedTo(Head),
+    StayedOnDetached,
+    Selected(Branch),
     LocatedAt(Worktree),
 }
 
@@ -97,12 +111,7 @@ impl InteractiveApp {
             SearchView::Idle
         } else {
             SearchView::Filtered {
-                list: generate_ranked_list(
-                    &self.head,
-                    &self.branches,
-                    &self.worktrees,
-                    &new_search,
-                ),
+                list: generate_ranked_list(&self.branches, &self.worktrees, &new_search),
                 search_string: new_search,
             }
         };
@@ -145,6 +154,43 @@ impl InteractiveApp {
         self.character_index = 0;
     }
 
+    fn rows(&self) -> Vec<Row> {
+        match &self.view {
+            SearchView::Idle => iter::once(Row::Current(self.head.clone()))
+                .chain(self.branches.iter().enumerate().map(|(i, b)| Row::Branch {
+                    branch: b.clone(),
+                    index: if i <= 9 {
+                        BranchIndex::QuickSelect(i)
+                    } else {
+                        BranchIndex::Bare
+                    },
+                }))
+                .chain(self.worktrees.iter().map(|w| Row::Worktree(w.clone())))
+                .collect(),
+
+            SearchView::Filtered { list, .. } => {
+                let mut i = 0;
+
+                list.available
+                    .iter()
+                    .map(|b| Row::Branch {
+                        branch: b.clone(),
+                        index: if b.is_head(&self.head) {
+                            BranchIndex::Head
+                        } else if i <= 9 {
+                            let idx = i;
+                            i += 1;
+                            BranchIndex::QuickSelect(idx)
+                        } else {
+                            BranchIndex::Bare
+                        },
+                    })
+                    .chain(list.worktrees.iter().map(|w| Row::Worktree(w.clone())))
+                    .collect()
+            }
+        }
+    }
+
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<AppExitStatus> {
         let mut list_state = ListState::default();
         list_state.select_first();
@@ -170,47 +216,18 @@ impl InteractiveApp {
                         | (KeyCode::Up, KeyModifiers::NONE) => list_state.select_previous(),
 
                         (KeyCode::Enter, KeyModifiers::NONE) => {
-                            let mut idx = list_state.selected().unwrap_or(0);
+                            let idx = list_state.selected().unwrap_or(0);
+                            let row = self
+                                .rows()
+                                .into_iter()
+                                .nth(idx)
+                                .context("selected branch no longer available")?;
 
-                            if idx == 0 {
-                                // short-circuit, staying on X
-                                return Ok(AppExitStatus::StayedOn(self.head));
-                            }
-
-                            terminal.clear()?;
-                            match &self.view {
-                                SearchView::Idle => {
-                                    idx = idx.saturating_sub(1);
-                                    if idx < self.branches.len() {
-                                        // jump to branch
-
-                                        return Ok(AppExitStatus::SwitchedTo(Head::Branch(
-                                            self.branches[idx].clone(),
-                                        )));
-                                    } else {
-                                        idx = idx.saturating_sub(self.branches.len() + 1);
-                                        // cd into worktree
-                                        return Ok(AppExitStatus::LocatedAt(
-                                            self.worktrees[idx].clone(),
-                                        ));
-                                    }
-                                }
-                                SearchView::Filtered { list, .. } => {
-                                    if idx < list.available.len() {
-                                        // jump to branch
-
-                                        return Ok(AppExitStatus::SwitchedTo(
-                                            list.available[idx].clone(),
-                                        ));
-                                    } else {
-                                        idx = idx.saturating_sub(self.branches.len() + 1);
-                                        // cd into worktree
-                                        return Ok(AppExitStatus::LocatedAt(
-                                            list.worktrees[idx].clone(),
-                                        ));
-                                    }
-                                }
-                            };
+                            return Ok(match row {
+                                Row::Current(_) => AppExitStatus::StayedOnDetached,
+                                Row::Branch { branch, .. } => AppExitStatus::Selected(branch),
+                                Row::Worktree(worktree) => AppExitStatus::LocatedAt(worktree),
+                            });
                         }
 
                         _ => {}
@@ -468,42 +485,25 @@ impl InteractiveApp {
             .max()
             .unwrap_or(0);
 
-        let items: Vec<_> = match &self.view {
-            SearchView::Idle => iter::once(render_head(&self.head))
-                .chain(
-                    self.branches
-                        .iter()
-                        .enumerate()
-                        .map(|(i, b)| render_branch(b, i, longest_entry)),
-                )
-                .chain(
-                    self.worktrees
-                        .iter()
-                        .map(|w| render_worktree(w, longest_entry, longest_dir)),
-                )
-                .collect(),
+        let rows = self.rows();
 
-            SearchView::Filtered { list, .. } => {
-                let RankedSearchList {
-                    available,
-                    worktrees,
-                } = list;
+        let items: Vec<_> = rows
+            .iter()
+            .map(|r| match r {
+                Row::Current(h) => render_head(h),
+                Row::Branch { branch, index } => match index {
+                    BranchIndex::QuickSelect(idx) => {
+                        render_branch(branch, format!(" {idx} "), longest_entry)
+                    }
+                    BranchIndex::Bare => {
+                        render_branch(branch, BRANCH_INDEX_PADD.to_string(), longest_entry)
+                    }
+                    BranchIndex::Head => render_head(&self.head),
+                },
 
-                available
-                    .iter()
-                    .enumerate()
-                    .map(|(i, h)| match h {
-                        Head::Detached { .. } => render_head(&h),
-                        Head::Branch(b) => render_branch(b, i, longest_entry),
-                    })
-                    .chain(
-                        worktrees
-                            .iter()
-                            .map(|w| render_worktree(w, longest_entry, longest_dir)),
-                    )
-                    .collect()
-            }
-        };
+                Row::Worktree(w) => render_worktree(w, longest_entry, longest_dir),
+            })
+            .collect();
 
         let list = List::new(items).highlight_style(Style::new().bg(Color::LightGreen));
 
@@ -518,9 +518,9 @@ fn render_head(h: &'_ Head) -> Line<'_> {
     ])
 }
 
-fn render_branch(b: &'_ Branch, idx: usize, max_entry_len: usize) -> Line<'_> {
+fn render_branch(b: &'_ Branch, index_label: String, max_entry_len: usize) -> Line<'_> {
     Line::from(vec![
-        Span::from(format!(" {idx} ")).bg(Color::DarkGray),
+        Span::from(index_label).bg(Color::DarkGray),
         Span::from(format!("{:width$}", b.name, width = max_entry_len)).bg(Color::White),
     ])
 }

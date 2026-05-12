@@ -1,8 +1,8 @@
-use std::{collections::HashSet, iter, path::Path};
+use std::{collections::HashSet, path::Path};
 
 use crate::{
     fuzzy_match::fuzzy_match,
-    types::{Branch, Head, RankedSearchList, Worktree},
+    types::{Branch, RankedSearchList, Worktree},
 };
 
 #[derive(PartialEq, Eq, PartialOrd)]
@@ -43,29 +43,25 @@ pub fn prep_available_worktrees(
 }
 
 pub fn generate_ranked_list(
-    head: &Head,
     branches: &[Branch],
     worktrees: &[Worktree],
     search_string: &str,
 ) -> RankedSearchList {
-    let mut available: Vec<MatchRecord<Head>> = iter::once(MatchRecord {
-        match_score: fuzzy_match(search_string, head.label()),
-        item: head.clone(),
-    })
-    .chain(branches.iter().map(|b| MatchRecord {
-        match_score: fuzzy_match(search_string, &b.name),
-        item: Head::Branch(b.to_owned()),
-    }))
-    .collect();
+    let mut available: Vec<MatchRecord<Branch>> = branches
+        .iter()
+        .map(|b| MatchRecord {
+            match_score: fuzzy_match(search_string, &b.name),
+            item: b.to_owned(),
+        })
+        .collect();
 
     available.sort_by(|a, b| {
         b.match_score
             .cmp(&a.match_score)
-            .then_with(|| b.item.last_switched().cmp(&a.item.last_switched()))
-            .then_with(|| a.item.label().cmp(&b.item.label()))
+            .then_with(|| b.item.cmp(&a.item))
     });
 
-    let available: Vec<Head> = available
+    let available: Vec<Branch> = available
         .into_iter()
         .filter(|r| r.match_score > 0)
         .map(|r| r.item)
