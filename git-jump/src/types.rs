@@ -52,7 +52,7 @@ pub enum ModifierKey {
     Option,
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Branch {
     pub name: String,
     pub last_switch: u64,
@@ -79,7 +79,7 @@ impl Ord for Branch {
     }
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Worktree {
     pub dir: PathBuf,
     pub head: Head,
@@ -107,7 +107,7 @@ pub fn get_active_worktree(worktrees: &Vec<Worktree>, active_worktree_dir: &Path
         .clone()
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Head {
     Detached { sha: String },
     Branch(Branch),

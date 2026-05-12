@@ -96,6 +96,7 @@ struct TerminalGuard;
 impl TerminalGuard {
     fn enter() -> Result<Self> {
         stdout().execute(EnterAlternateScreen)?;
+        stdout().execute(crossterm::event::DisableMouseCapture)?;
         enable_raw_mode()?;
         let backend = CrosstermBackend::new(stdout());
         let mut terminal = Terminal::new(backend)?;
@@ -138,16 +139,18 @@ pub fn main() -> Result<ExitCode> {
 
     match cli.into_invocation() {
         Invocation::Interactive => {
-            let _guard = TerminalGuard::enter()?;
-            let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
-
             let active = get_active_worktree(&state.worktrees, &state.active_worktree);
 
-            let branches = prep_available_branches(&state.branches, &state.worktrees);
-            let worktrees = prep_available_worktrees(&state.worktrees, &state.active_worktree);
+            let res = {
+                let _guard = TerminalGuard::enter()?;
+                let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
 
-            let app = InteractiveApp::new(active.head.to_owned(), branches, worktrees);
-            let res = app.run(&mut terminal)?;
+                let branches = prep_available_branches(&state.branches, &state.worktrees);
+                let worktrees = prep_available_worktrees(&state.worktrees, &state.active_worktree);
+
+                let app = InteractiveApp::new(active.head.to_owned(), branches, worktrees);
+                app.run(&mut terminal)?
+            };
 
             match res {
                 app::AppExitStatus::StayedOnDetached => {
