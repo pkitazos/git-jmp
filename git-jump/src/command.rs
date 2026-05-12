@@ -50,10 +50,13 @@ pub fn rename_sub_command(
 pub fn delete_sub_command(
     state: &Model,
     branch_names: &[&str],
+    force: bool,
 ) -> Result<Vec<BranchDeleteResult>, GitJumpError> {
+    let delete_flag = if force { "-D" } else { "-d" };
+
     let results: Vec<_> = branch_names
         .iter()
-        .map(|&b| match git_command("branch", &["--delete", b]) {
+        .map(|&b| match git_command("branch", &[delete_flag, b]) {
             Ok(_) => BranchDeleteResult::Deleted(b.to_string()),
             Err(e) => BranchDeleteResult::Failed(b.to_string(), e.to_string()),
         })
