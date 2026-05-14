@@ -148,4 +148,141 @@ sources = ["local", { remote = "origin" }]
         assert_eq!(sources[0], RefSource::Local);
         assert_eq!(sources[1], RefSource::Remote("origin".to_string()));
     }
+
+    #[test]
+    fn parses_empty_string_as_defaults() {
+        let config: PartialConfig = toml::from_str("").unwrap();
+        assert!(config.general.is_none());
+        assert!(config.appearance.is_none());
+    }
+
+    #[test]
+    fn parses_vim_mode() {
+        let input = r#"
+[general]
+vim_mode = true
+"#;
+        let config: PartialConfig = toml::from_str(input).unwrap();
+        assert_eq!(config.general.unwrap().vim_mode, Some(true));
+    }
+
+    #[test]
+    fn parses_quick_select_hint_variants() {
+        for (input, expected) in [
+            ("full", QuickSelectHint::Full),
+            ("compact", QuickSelectHint::Compact),
+            ("hidden", QuickSelectHint::Hidden),
+        ] {
+            let toml = format!("[appearance]\nquick_select_hint = \"{}\"", input);
+            let config: PartialConfig = toml::from_str(&toml).unwrap();
+            assert_eq!(config.appearance.unwrap().quick_select_hint, Some(expected));
+        }
+    }
+
+    #[test]
+    fn parses_full_config() {
+        let input = r#"
+[general]
+vim_mode = true
+sources = ["local", { remote = "upstream" }]
+
+[appearance]
+quick_select_hint = "hidden"
+"#;
+        let config: PartialConfig = toml::from_str(input).unwrap();
+        let general = config.general.unwrap();
+        assert_eq!(general.vim_mode, Some(true));
+        assert_eq!(
+            general.sources.unwrap(),
+            vec![RefSource::Local, RefSource::Remote("upstream".to_string())]
+        );
+        assert_eq!(
+            config.appearance.unwrap().quick_select_hint,
+            Some(QuickSelectHint::Hidden)
+        );
+    }
+
+    #[test]
+    fn merge_both_empty_gives_defaults() {
+        let config = merge(PartialConfig::default(), PartialConfig::default());
+        assert_eq!(config.general.vim_mode, false);
+        assert!(config.general.sources.is_empty());
+        assert_eq!(config.appearance.quick_select_hint, QuickSelectHint::Full);
+    }
+
+    #[test]
+    fn merge_global_used_when_local_absent() {
+        let global = PartialConfig {
+            general: Some(PartialGeneral {
+                vim_mode: Some(true),
+                sources: Some(vec![RefSource::Local]),
+            }),
+            appearance: Some(PartialAppearance {
+                quick_select_hint: Some(QuickSelectHint::Compact),
+            }),
+        };
+        let config = merge(global, PartialConfig::default());
+        assert_eq!(config.general.vim_mode, true);
+        assert_eq!(config.general.sources, vec![RefSource::Local]);
+        assert_eq!(
+            config.appearance.quick_select_hint,
+            QuickSelectHint::Compact
+        );
+    }
+
+    #[test]
+    fn merge_local_overrides_global() {
+        let global = PartialConfig {
+            general: Some(PartialGeneral {
+                vim_mode: Some(true),
+                sources: Some(vec![RefSource::Local]),
+            }),
+            appearance: Some(PartialAppearance {
+                quick_select_hint: Some(QuickSelectHint::Compact),
+            }),
+        };
+        let local = PartialConfig {
+            general: Some(PartialGeneral {
+                vim_mode: Some(false),
+                sources: Some(vec![RefSource::Remote("origin".to_string())]),
+            }),
+            appearance: Some(PartialAppearance {
+                quick_select_hint: Some(QuickSelectHint::Hidden),
+            }),
+        };
+        let config = merge(global, local);
+        assert_eq!(config.general.vim_mode, false);
+        assert_eq!(
+            config.general.sources,
+            vec![RefSource::Remote("origin".to_string())]
+        );
+        assert_eq!(config.appearance.quick_select_hint, QuickSelectHint::Hidden);
+    }
+
+    #[test]
+    fn merge_local_partial_override() {
+        let global = PartialConfig {
+            general: Some(PartialGeneral {
+                vim_mode: Some(true),
+                sources: Some(vec![RefSource::Local]),
+            }),
+            appearance: Some(PartialAppearance {
+                quick_select_hint: Some(QuickSelectHint::Compact),
+            }),
+        };
+        let local = PartialConfig {
+            general: Some(PartialGeneral {
+                vim_mode: Some(false),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let config = merge(global, local);
+        assert_eq!(config.general.vim_mode, false);
+        assert_eq!(config.general.sources, vec![RefSource::Local]);
+        assert_eq!(
+            config.appearance.quick_select_hint,
+            QuickSelectHint::Compact
+        );
+    }
 }

@@ -13,7 +13,7 @@
 vim_mode = false
 sources = ["local"] # "include_remotes" (maybe even configurable as to which remotes to include)
 
-[appearrance]
+[appearance]
 quick_select_hint = "full" # or "compact" or "hidden"
 theme = "default" # theme support comes in later
 ```

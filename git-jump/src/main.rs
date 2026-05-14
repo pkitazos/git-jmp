@@ -42,10 +42,6 @@ pub struct Cli {
     /// if `git switch` doesn't find an exact match.
     pub branch: Option<String>,
 
-    /// Include remote branches (applies to interactive mode, direct jump, and list)
-    #[arg(short('r'), long)]
-    pub include_remotes: bool,
-
     /// Include remote branches (applies to interactive mode only)
     #[arg(long)]
     pub vim_mode: bool,
@@ -133,13 +129,22 @@ pub fn main() -> Result<ExitCode> {
         Some(parent_dir) => config::parse_config(parent_dir.join(NAME).join("config.toml"))?,
         None => PartialConfig::default(),
     };
+    let global_appearance = global_config.appearance.clone();
+    match global_appearance {
+        Some(g) => eprintln!("we got: {:#?}", g),
+        None => eprintln!("no global apperrance settings"),
+    };
 
+    // todo: when I support the `--inlude-remotes` flag, that needs to be passed to `init`
     let data = init()?;
     let state = Model::new(data)?;
 
     let local_config = config::parse_config(state.main_worktree.jump_dir().join("config.toml"))?;
 
-    let _app_config = config::merge(global_config, local_config);
+    let mut app_config = config::merge(global_config, local_config);
+    if cli.vim_mode {
+        app_config.general.vim_mode = true
+    }
 
     match cli.into_invocation() {
         Invocation::Interactive => {
@@ -152,7 +157,8 @@ pub fn main() -> Result<ExitCode> {
                 let branches = prep_available_branches(&state.branches, &state.worktrees);
                 let worktrees = prep_available_worktrees(&state.worktrees, &state.active_worktree);
 
-                let app = InteractiveApp::new(active.head.to_owned(), branches, worktrees);
+                let app =
+                    InteractiveApp::new(active.head.to_owned(), branches, worktrees, app_config);
                 app.run(&mut terminal)?
             };
 
