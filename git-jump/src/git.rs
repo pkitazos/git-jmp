@@ -65,7 +65,12 @@ pub fn fetch_remote_branches(remote: &str) -> Result<Vec<String>> {
     let branches: Vec<String> = branches
         .lines()
         .filter_map(|line| line.split('\t').nth(1))
-        .map(|r| r.trim_start_matches("refs/heads/").to_string())
+        .map(|r| {
+            format!(
+                "{remote}/{}",
+                r.trim_start_matches("refs/heads/").to_string()
+            )
+        })
         .collect();
 
     Ok(branches)

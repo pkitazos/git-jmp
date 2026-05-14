@@ -1,6 +1,7 @@
 use std::{iter, usize};
 
 use crate::{
+    config::{Config, QuickSelectHint},
     input::{next_word_boundary, prev_word_boundary},
     list::generate_ranked_list,
     types::{Branch, Head, RankedSearchList, Worktree},
@@ -17,19 +18,22 @@ use ratatui::{
 };
 
 pub struct InteractiveApp {
-    pub character_index: usize,
-    pub input_mode: InputMode,
-    pub alert: String,
+    vim_mode: bool,
+    quick_select_hint: QuickSelectHint,
+
+    character_index: usize,
+    input_mode: InputMode,
+    alert: String,
 
     /// the currently checked out branch
-    pub head: Head,
+    head: Head,
     /// branches you can jump to (does not include currently checked out branch)
-    pub branches: Vec<Branch>,
+    branches: Vec<Branch>,
     /// branches checked out in linked worktrees
-    pub worktrees: Vec<Worktree>,
+    worktrees: Vec<Worktree>,
 
     // view state (technically a copy of the source data)
-    pub view: SearchView,
+    view: SearchView,
 }
 
 #[derive(Clone)]
@@ -78,10 +82,22 @@ pub enum AppExitStatus {
 }
 
 impl InteractiveApp {
-    pub fn new(head: Head, branches: Vec<Branch>, worktrees: Vec<Worktree>) -> Self {
+    pub fn new(
+        head: Head,
+        branches: Vec<Branch>,
+        worktrees: Vec<Worktree>,
+        config: Config,
+    ) -> Self {
         Self {
+            vim_mode: config.general.vim_mode,
+            quick_select_hint: config.appearance.quick_select_hint,
+
+            input_mode: if config.general.vim_mode {
+                InputMode::Normal
+            } else {
+                InputMode::Editing
+            },
             character_index: 0,
-            input_mode: InputMode::Normal,
             alert: String::from("no alert"),
             head,
             branches,
@@ -296,6 +312,10 @@ impl InteractiveApp {
                             // Char right
                             (KeyCode::Right, KeyModifiers::NONE) => self.move_cursor_right(),
 
+                            (KeyCode::Down, KeyModifiers::NONE) => list_state.select_next(),
+
+                            (KeyCode::Up, KeyModifiers::NONE) => list_state.select_previous(),
+
                             // --- deletion ---
 
                             // Delete word backward
@@ -389,7 +409,9 @@ impl InteractiveApp {
                             }
 
                             (KeyCode::Esc, KeyModifiers::NONE) => {
-                                self.input_mode = InputMode::Normal;
+                                if self.vim_mode {
+                                    self.input_mode = InputMode::Normal
+                                };
                             }
 
                             // --- debug catch-all ---
@@ -418,7 +440,6 @@ impl InteractiveApp {
 
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .margin(1)
             .constraints(constraints);
 
         let [search_area, list, status_area] = frame.area().layout(&layout);
@@ -427,16 +448,24 @@ impl InteractiveApp {
 
         self.render_scrollable_list(frame, list, list_state);
 
-        self.render_status(frame, status_area);
+        if self.vim_mode {
+            self.render_status(frame, status_area);
+        }
     }
 
     fn render_search_row(&self, frame: &mut Frame, area: Rect) {
+        let quick_select_hint = match self.quick_select_hint {
+            QuickSelectHint::Full => format!("⌥+0..{} quick select", self.branches.len()),
+            QuickSelectHint::Compact => format!("⌥+0..{}", self.branches.len()),
+            QuickSelectHint::Hidden => "".to_string(),
+        };
+
         let search_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Length(3),
                 Constraint::Fill(1),
-                Constraint::Length(20),
+                Constraint::Length(quick_select_hint.len() as u16),
             ]);
 
         let [_, search_area, hint_area] = area.layout(&search_layout);
@@ -465,10 +494,7 @@ impl InteractiveApp {
             search_area,
         );
 
-        frame.render_widget(
-            Text::from(format!("⌥+0..{} quick select", self.branches.len())).bg(Color::DarkGray),
-            hint_area,
-        );
+        frame.render_widget(Text::from(quick_select_hint).bg(Color::DarkGray), hint_area);
     }
 
     fn render_status(&self, frame: &mut Frame, area: Rect) {
