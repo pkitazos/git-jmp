@@ -17,27 +17,38 @@ use git_jump::{
         delete_sub_command, jump_to, list_sub_command, new_sub_command, rename_sub_command,
         switch_and_record,
     },
+    config::{self, PartialConfig},
     list::{prep_available_branches, prep_available_worktrees},
     system::init,
-    types::{BranchDeleteResult, Model, ModifierKey, get_active_worktree},
+    types::{BranchDeleteResult, Model, get_active_worktree},
     ui::{render_branch_deletion_res, render_branch_list, render_git_jump_error},
 };
 
+const NAME: &str = "git-jmp";
+
 #[derive(Parser)]
 #[command(
-    name = "git-jump",
+    name = NAME,
     version,
     about,
     propagate_version = true,
-    override_usage = "git jump [BRANCH] | git jump <COMMAND> | git jump"
+    override_usage = "git jmp [BRANCH] | git jmp <COMMAND> | git jmp"
 )]
 pub struct Cli {
     /// Switches to the branch which fuzzy-matches the string
     ///
     /// When a single argument is provided, `<branch name>` can be just part of the name
-    /// - `git jump` will look for the best matching local branch
+    /// - `git jmp` will look for the best matching local branch
     /// if `git switch` doesn't find an exact match.
     pub branch: Option<String>,
+
+    /// Include remote branches (applies to interactive mode, direct jump, and list)
+    #[arg(short('r'), long)]
+    pub include_remotes: bool,
+
+    /// Include remote branches (applies to interactive mode only)
+    #[arg(long)]
+    pub vim_mode: bool,
 
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -47,7 +58,10 @@ pub struct Cli {
 pub enum Commands {
     /// List all branches
     #[clap(visible_alias("ls"))]
-    List,
+    List {
+        #[arg(short('r'), long)]
+        include_remotes: bool,
+    },
 
     #[command(arg_required_else_help = true)]
     /// Create a new branch called <branch_name>
@@ -115,27 +129,17 @@ impl Drop for TerminalGuard {
 pub fn main() -> Result<ExitCode> {
     let cli = Cli::parse();
 
+    let global_config = match dirs::config_dir() {
+        Some(parent_dir) => config::parse_config(parent_dir.join(NAME).join("config.toml"))?,
+        None => PartialConfig::default(),
+    };
+
     let data = init()?;
+    let state = Model::new(data)?;
 
-    let (columns, rows) = crossterm::terminal::size()?;
+    let local_config = config::parse_config(state.main_worktree.jump_dir().join("config.toml"))?;
 
-    let modifier_key = if std::env::consts::OS == "macos" {
-        ModifierKey::Option
-    } else {
-        ModifierKey::Alt
-    };
-
-    let state: Model = Model {
-        main_worktree: data.main_worktree,
-        active_worktree: data.active_worktree,
-        columns: columns as usize,
-        rows: rows as usize,
-        max_rows: rows as usize,
-        branches: data.branches,
-        worktrees: data.worktrees,
-        modifier_key: modifier_key,
-        interactive_state: None,
-    };
+    let _app_config = config::merge(global_config, local_config);
 
     match cli.into_invocation() {
         Invocation::Interactive => {
@@ -195,10 +199,15 @@ pub fn main() -> Result<ExitCode> {
         },
 
         Invocation::Sub(cmd) => match cmd {
-            Commands::List => {
+            Commands::List { include_remotes } => {
                 let active = get_active_worktree(&state.worktrees, &state.active_worktree);
-                let branches = list_sub_command(&state);
-                render_branch_list(&active.head, &branches, &state.worktrees);
+                match list_sub_command(&state, include_remotes) {
+                    Ok(branches) => render_branch_list(&active.head, &branches, &state.worktrees),
+                    Err(err) => {
+                        render_git_jump_error(err);
+                        return Ok(ExitCode::FAILURE);
+                    }
+                }
             }
 
             Commands::New { branch_name } => {

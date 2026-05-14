@@ -1,5 +1,6 @@
 pub mod app;
 pub mod command;
+pub mod config;
 pub mod fuzzy_match;
 pub mod git;
 pub mod input;

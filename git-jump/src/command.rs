@@ -1,15 +1,23 @@
 use std::path::Path;
 
 use crate::{
-    git::git_command,
+    git::{fetch_remote_branches, fetch_remotes, git_command},
     list::generate_ranked_list,
     storage::{delete_jump_data_branch, rename_jump_data_branch, update_branch_last_switch},
     types::{BranchDeleteResult, GitJumpError, Head, Model, get_active_worktree},
     utils::now,
 };
 
-pub fn list_sub_command(state: &Model) -> Vec<String> {
-    state.branches.iter().map(|b| b.name.to_owned()).collect()
+pub fn list_sub_command(state: &Model, include_remotes: bool) -> Result<Vec<String>, GitJumpError> {
+    let mut branches: Vec<String> = state.branches.iter().map(|b| b.name.to_owned()).collect();
+    if include_remotes {
+        for remote in fetch_remotes()? {
+            let mut remote_branches = fetch_remote_branches(&remote)?;
+            branches.append(&mut remote_branches);
+        }
+    }
+
+    Ok(branches)
 }
 
 /// side-effect: update the JumpData file
