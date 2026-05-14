@@ -54,20 +54,19 @@ pub fn read_raw_worktrees() -> Result<Vec<RawWorktree>> {
         .collect::<Result<Vec<RawWorktree>>>()
 }
 
-pub fn fetch_remote_branches() -> Result<Vec<String>> {
-    let branches = git_command(
-        "for-each-ref",
-        &["--format='%(refname:lstrip=3)'", "refs/remotes/"],
-    )?;
+pub fn fetch_remotes() -> Result<Vec<String>> {
+    let remotes = git_command("remote", &[])?;
+    Ok(remotes.lines().map(|r| r.trim().to_string()).collect())
+}
 
-    let mut branches: Vec<String> = branches
+pub fn fetch_remote_branches(remote: &str) -> Result<Vec<String>> {
+    let branches = git_command("ls-remote", &["--heads", remote])?;
+
+    let branches: Vec<String> = branches
         .lines()
-        .map(|s| s.to_owned())
-        .filter(|s| !s.is_empty())
+        .filter_map(|line| line.split('\t').nth(1))
+        .map(|r| r.trim_start_matches("refs/heads/").to_string())
         .collect();
-
-    branches.sort();
-    branches.dedup();
 
     Ok(branches)
 }

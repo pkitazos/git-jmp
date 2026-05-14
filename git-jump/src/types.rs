@@ -1,10 +1,10 @@
+use crate::{app::InteractiveApp, system::InitData, utils::now};
+use anyhow::Result;
 use std::{
     cmp,
     path::{Path, PathBuf},
 };
 use thiserror::Error;
-
-use crate::{app::InteractiveApp, utils::now};
 
 pub struct Model {
     pub main_worktree: MainWorktree,
@@ -16,6 +16,28 @@ pub struct Model {
     pub branches: Vec<Branch>,
     pub worktrees: Vec<Worktree>,
     pub interactive_state: Option<InteractiveApp>,
+}
+
+impl Model {
+    pub fn new(data: InitData) -> Result<Model> {
+        let (columns, rows) = crossterm::terminal::size()?;
+
+        Ok(Model {
+            main_worktree: data.main_worktree,
+            active_worktree: data.active_worktree,
+            columns: columns as usize,
+            rows: rows as usize,
+            max_rows: rows as usize,
+            branches: data.branches,
+            worktrees: data.worktrees,
+            modifier_key: if std::env::consts::OS == "macos" {
+                ModifierKey::Option
+            } else {
+                ModifierKey::Alt
+            },
+            interactive_state: None,
+        })
+    }
 }
 
 pub struct MainWorktree {
