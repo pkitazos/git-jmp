@@ -1,8 +1,8 @@
 # Todo
 - [ ] actually fix the interactive app styles to not use the blocky look
-- [ ] configurable interactive prompt (option to hide the quick select helper text, set vim mode)
-- [ ] couple more flags 
-  - `--include-remotes` / `-r` to interactive, direct jump, and list
+- [x] configurable interactive prompt (option to hide the quick select helper text, set vim mode)
+- [x] couple more flags 
+  - `--include-remotes` / `-r` to list (haven't figured out a nice way to do it in interactive mode yet)
   - `--vim-mode` to interactive
 
 
@@ -29,8 +29,3 @@ theme = "default" # theme support comes in later
 - [ ] update help messages
 - [ ] open issue upstream
 - [ ] unlink from fork network
-
-
-
-1. `git remote` get the list of remotes
-2. `git ls-remote --heads <remote>` for each one, get the live branches
