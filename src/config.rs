@@ -20,34 +20,16 @@ pub struct Appearance {
     pub quick_select_hint: QuickSelectHint,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct PartialConfig {
     pub general: Option<PartialGeneral>,
     pub appearance: Option<PartialAppearance>,
 }
 
-impl Default for PartialConfig {
-    fn default() -> Self {
-        Self {
-            general: Default::default(),
-            appearance: Default::default(),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct PartialGeneral {
     pub vim_mode: Option<bool>,
     pub sources: Option<Vec<RefSource>>,
-}
-
-impl Default for PartialGeneral {
-    fn default() -> Self {
-        Self {
-            vim_mode: Default::default(),
-            sources: Default::default(),
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -57,17 +39,9 @@ pub enum RefSource {
     Remote(String),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct PartialAppearance {
     pub quick_select_hint: Option<QuickSelectHint>,
-}
-
-impl Default for PartialAppearance {
-    fn default() -> Self {
-        Self {
-            quick_select_hint: Default::default(),
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]

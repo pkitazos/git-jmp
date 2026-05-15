@@ -121,7 +121,7 @@ impl Ord for Worktree {
     }
 }
 
-pub fn get_active_worktree(worktrees: &Vec<Worktree>, active_worktree_dir: &Path) -> Worktree {
+pub fn get_active_worktree(worktrees: &[Worktree], active_worktree_dir: &Path) -> Worktree {
     worktrees
         .iter()
         .find(|w| w.dir.eq(&active_worktree_dir))

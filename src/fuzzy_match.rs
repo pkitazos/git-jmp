@@ -26,7 +26,7 @@ pub fn fuzzy_match(search: &str, target: &str) -> usize {
 
     let prefix_bonus: usize = matched_indices
         .iter()
-        .map(|&idx| (PREFIX_WINDOW.saturating_sub(idx)))
+        .map(|&idx| PREFIX_WINDOW.saturating_sub(idx))
         .sum();
 
     let continuity_bonus: usize = matched_indices

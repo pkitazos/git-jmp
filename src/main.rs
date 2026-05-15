@@ -39,7 +39,7 @@ pub struct Cli {
     ///
     /// When a single argument is provided, `<branch name>` can be just part of the name
     /// - `git jmp` will look for the best matching local branch
-    /// if `git switch` doesn't find an exact match.
+    ///   if `git switch` doesn't find an exact match.
     pub branch: Option<String>,
 
     /// Include remote branches (applies to interactive mode only)

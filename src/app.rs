@@ -1,4 +1,4 @@
-use std::{iter, usize};
+use std::iter;
 
 use crate::{
     config::{Config, QuickSelectHint},
@@ -224,11 +224,11 @@ impl InteractiveApp {
             .nth(idx)
             .context("selected branch no longer available")?;
 
-        return Ok(match row {
+        Ok(match row {
             Row::Current(_) => AppExitStatus::StayedOnDetached,
             Row::Branch { branch, .. } => AppExitStatus::Selected(branch),
             Row::Worktree(worktree) => AppExitStatus::LocatedAt(worktree),
-        });
+        })
     }
 
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<AppExitStatus> {
@@ -473,7 +473,7 @@ impl InteractiveApp {
         let search_string = if self.view.search_string().is_empty() {
             "Search"
         } else {
-            &self.view.search_string()
+            self.view.search_string()
         };
 
         let cursor_style = match self.input_mode {
