@@ -1,4 +1,4 @@
-node_modules/
-dist/
+/target
+scratch.md
 log
 .DS_Store
