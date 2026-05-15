@@ -1,12 +1,8 @@
 ![git-jump CLI logo](https://raw.githubusercontent.com/pkitazos/git-jump/main/img/readme-banner.png)
 
-# Git Branches Helper
+# Git Jmp
 
-* Interactive UI to view and switch branches
-* Sorting by recently used
-* Fuzzy search
-* Fuzzy switch: `git jump hlw` → `git switch hello-world`
-* Uses native `git switch` under the hood, supports all its parameters
+Interactive navigation between branches and worktrees.
 
 Give it a ⭐️ if you like it. This really helps.
 
