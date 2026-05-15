@@ -65,12 +65,7 @@ pub fn fetch_remote_branches(remote: &str) -> Result<Vec<String>> {
     let branches: Vec<String> = branches
         .lines()
         .filter_map(|line| line.split('\t').nth(1))
-        .map(|r| {
-            format!(
-                "{remote}/{}",
-                r.trim_start_matches("refs/heads/").to_string()
-            )
-        })
+        .map(|r| format!("{remote}/{}", r.trim_start_matches("refs/heads/")))
         .collect();
 
     Ok(branches)
@@ -96,13 +91,11 @@ fn parse_worktree_entry(lines: &[&str]) -> Result<RawWorktree> {
                 }
                 _ => {}
             },
-            None => {
-                match line.as_ref() {
-                    "bare" => bare = true,
-                    "detached" => detached = true,
-                    _ => {}
-                };
-            }
+            None => match *line {
+                "bare" => bare = true,
+                "detached" => detached = true,
+                _ => {}
+            },
         }
     }
 

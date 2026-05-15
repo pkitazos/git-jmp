@@ -118,7 +118,7 @@ pub fn jump_to(state: &Model, target: &str) -> Result<String, GitJumpError> {
         });
     }
 
-    return switch_and_record(&state.main_worktree.data_file(), &list.available[0].name);
+    switch_and_record(&state.main_worktree.data_file(), &list.available[0].name)
 }
 
 /// Switches to `target` via `git switch` and records the jump timestamp.
@@ -129,7 +129,7 @@ pub fn jump_to(state: &Model, target: &str) -> Result<String, GitJumpError> {
 ///
 /// side-effects: executes `git switch`, updates jump data
 pub fn switch_and_record(data_file: &Path, target: &str) -> Result<String, GitJumpError> {
-    match git_command("switch", &[&target]) {
+    match git_command("switch", &[target]) {
         Ok(msg) => {
             if let Ok(branch_name) = git_command("rev-parse", &["--abbrev-ref", "HEAD"]) {
                 update_branch_last_switch(data_file, &branch_name, now())?;

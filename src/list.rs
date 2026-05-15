@@ -74,7 +74,7 @@ pub fn generate_ranked_list(
         .collect();
 
     let mut worktrees: Vec<MatchRecord<Worktree>> = worktrees
-        .into_iter()
+        .iter()
         .map(|w| MatchRecord {
             match_score: fuzzy_match(search_string, w.head.label()),
             item: w.clone(),

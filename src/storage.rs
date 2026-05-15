@@ -13,31 +13,31 @@ type BranchCollection = HashMap<String, u64>;
 /// Reads the historical data from disk, updates the timestamp in memory,
 /// and immediately flushes the changes back to `.jump/data.json`.
 pub fn update_branch_last_switch(data_file: &Path, name: &str, last_switch: u64) -> Result<()> {
-    let mut jump_data: BranchCollection = load_jump_data(&data_file)?;
+    let mut jump_data: BranchCollection = load_jump_data(data_file)?;
 
     set_branch_timestamp(&mut jump_data, name, last_switch);
 
-    save_branches_jump_data(&data_file, &jump_data)
+    save_branches_jump_data(data_file, &jump_data)
 }
 
 /// Reads the current data from disk, applies the pure rename transformation,
 /// and safely writes the updated history back to `.jump/data.json`.
 pub fn rename_jump_data_branch(data_file: &Path, current_name: &str, new_name: &str) -> Result<()> {
-    let mut jump_data: BranchCollection = load_jump_data(&data_file)?;
+    let mut jump_data: BranchCollection = load_jump_data(data_file)?;
 
     rename_branch(&mut jump_data, current_name, new_name);
 
-    save_branches_jump_data(&data_file, &jump_data)
+    save_branches_jump_data(data_file, &jump_data)
 }
 
 /// Reads the current data from disk, filters out the specified branches,
 /// and writes the clean data back to `.jump/data.json`.
 pub fn delete_jump_data_branch(data_file: &Path, branch_names: &[&str]) -> Result<()> {
-    let mut jump_data: BranchCollection = load_jump_data(&data_file)?;
+    let mut jump_data: BranchCollection = load_jump_data(data_file)?;
 
     delete_branches(&mut jump_data, branch_names);
 
-    save_branches_jump_data(&data_file, &jump_data)
+    save_branches_jump_data(data_file, &jump_data)
 }
 
 /// Loads jump data from disk, normalising the on-disk format if needed.
@@ -78,7 +78,7 @@ pub fn clean_and_save_jump_data(
             .map(|b| b.as_str())
             .collect::<Vec<_>>(),
     );
-    save_branches_jump_data(&data_file, jump_data)?;
+    save_branches_jump_data(data_file, jump_data)?;
     Ok(())
 }
 
