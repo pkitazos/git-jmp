@@ -167,3 +167,114 @@ fn keep_branches(jump_data: &mut BranchCollection, branch_names: &[&str]) {
 fn delete_branches(jump_data: &mut BranchCollection, branch_names: &[&str]) {
     filter_jump_data(jump_data, branch_names, FilterMode::Delete);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_data() -> BranchCollection {
+        HashMap::from([
+            ("main".to_string(), 100),
+            ("dev".to_string(), 50),
+            ("feature".to_string(), 10),
+        ])
+    }
+
+    // set_branch_timestamp
+
+    #[test]
+    fn set_timestamp_inserts_new_branch() {
+        let mut data = HashMap::new();
+        set_branch_timestamp(&mut data, "main", 42);
+        assert_eq!(data.get("main"), Some(&42));
+    }
+
+    #[test]
+    fn set_timestamp_updates_existing_branch() {
+        let mut data = sample_data();
+        set_branch_timestamp(&mut data, "main", 999);
+        assert_eq!(data.get("main"), Some(&999));
+    }
+
+    // rename_branch
+
+    #[test]
+    fn rename_moves_timestamp_to_new_key() {
+        let mut data = sample_data();
+        rename_branch(&mut data, "main", "primary");
+        assert_eq!(data.get("primary"), Some(&100));
+        assert!(!data.contains_key("main"));
+    }
+
+    #[test]
+    fn rename_nonexistent_is_noop() {
+        let mut data = sample_data();
+        let before = data.clone();
+        rename_branch(&mut data, "nonexistent", "new");
+        assert_eq!(data, before);
+    }
+
+    // delete_branches
+
+    #[test]
+    fn delete_removes_specified_branches() {
+        let mut data = sample_data();
+        delete_branches(&mut data, &["main", "dev"]);
+        assert!(!data.contains_key("main"));
+        assert!(!data.contains_key("dev"));
+        assert!(data.contains_key("feature"));
+    }
+
+    #[test]
+    fn delete_nonexistent_is_noop() {
+        let mut data = sample_data();
+        let before = data.clone();
+        delete_branches(&mut data, &["nonexistent"]);
+        assert_eq!(data.len(), 3);
+        assert_eq!(data, before);
+    }
+
+    #[test]
+    fn delete_empty_list_keeps_all() {
+        let mut data = sample_data();
+        delete_branches(&mut data, &[]);
+        assert_eq!(data.len(), 3);
+    }
+
+    // keep_branches
+
+    #[test]
+    fn keep_retains_only_specified() {
+        let mut data = sample_data();
+        keep_branches(&mut data, &["main"]);
+        assert_eq!(data.len(), 1);
+        assert_eq!(data.get("main"), Some(&100));
+    }
+
+    #[test]
+    fn keep_empty_list_removes_all() {
+        let mut data = sample_data();
+        keep_branches(&mut data, &[]);
+        assert!(data.is_empty());
+    }
+
+    // parse_from_disk
+
+    #[test]
+    fn parse_v2_format() {
+        let json = r#"{"main": 100, "dev": 50}"#;
+        let on_disk: OnDisk = serde_json::from_str(json).unwrap();
+        let result = parse_from_disk(on_disk);
+        assert_eq!(result.get("main"), Some(&100));
+        assert_eq!(result.get("dev"), Some(&50));
+    }
+
+    #[test]
+    fn parse_v1_format() {
+        let json = r#"{"main": {"lastSwitch": 100}, "dev": {"lastSwitch": 50}}"#;
+        let on_disk: OnDisk = serde_json::from_str(json).unwrap();
+        let result = parse_from_disk(on_disk);
+        assert_eq!(result.get("main"), Some(&100));
+        assert_eq!(result.get("dev"), Some(&50));
+    }
+}
