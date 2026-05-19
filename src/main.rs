@@ -2,16 +2,16 @@ use anyhow::Result;
 use clap::Parser;
 use std::process::ExitCode;
 
-pub mod app;
+pub mod branch;
 pub mod cmd;
 pub mod config;
 pub mod error;
 pub mod fuzzy_match;
 pub mod git;
-pub mod list;
 pub mod model;
 pub mod print;
 pub mod storage;
+pub mod tui;
 pub mod types;
 
 use crate::{cmd::Cli, print::render_git_jump_error};

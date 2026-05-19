@@ -5,7 +5,7 @@ use crossterm::style::Stylize;
 use crate::{
     cmd::delete::BranchDeleteResult,
     error::GitJumpError,
-    list::worktree_branch_names,
+    branch::worktree_branch_names,
     types::{Head, Worktree},
 };
 
