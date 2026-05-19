@@ -3,13 +3,13 @@ use std::io::{self, IsTerminal};
 use crossterm::style::Stylize;
 
 use crate::{
+    branch::worktree_branch_names,
     cmd::delete::BranchDeleteResult,
     error::GitJumpError,
-    branch::worktree_branch_names,
     types::{Head, Worktree},
 };
 
-pub const BRANCH_INDEX_PADD: &str = "   ";
+pub const INDEX_PADD: &str = "   ";
 
 pub fn render_branch_list(active: &Head, branches: &[String], worktrees: &[Worktree]) {
     let mut ws = worktree_branch_names(worktrees);
@@ -28,7 +28,7 @@ pub fn render_branch_list(active: &Head, branches: &[String], worktrees: &[Workt
         } else if ws.contains(name.as_str()) {
             println!(" + {}", name.as_str().cyan());
         } else {
-            println!("{BRANCH_INDEX_PADD}{name}");
+            println!("{INDEX_PADD}{name}");
         }
     }
 }

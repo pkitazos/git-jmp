@@ -12,6 +12,7 @@ use crate::{
 mod cursor_nav;
 mod render;
 pub mod terminal;
+mod theme;
 
 enum ModifierKey {
     Alt,
@@ -117,7 +118,7 @@ impl InteractiveApp {
                 InputMode::Editing
             },
             character_index: 0,
-            alert: String::from("no alert"),
+            alert: String::from(""),
             head,
             branches,
             worktrees,
@@ -304,25 +305,19 @@ impl InteractiveApp {
                             // Word left
                             (KeyCode::Left, KeyModifiers::ALT)
                             | (KeyCode::Char('b'), KeyModifiers::ALT) => {
-                                let curr = self.character_index;
-                                let next = cursor_nav::prev_word_boundary(
+                                self.character_index = cursor_nav::prev_word_boundary(
                                     self.view.search_string(),
                                     self.character_index,
                                 );
-                                self.character_index = next;
-                                self.alert = format!("move from {} to {}", curr, next)
                             }
 
                             // Word right
                             (KeyCode::Right, KeyModifiers::ALT)
                             | (KeyCode::Char('f'), KeyModifiers::ALT) => {
-                                let curr = self.character_index;
-                                let next = cursor_nav::next_word_boundary(
+                                self.character_index = cursor_nav::next_word_boundary(
                                     self.view.search_string(),
                                     self.character_index,
                                 );
-                                self.character_index = next;
-                                self.alert = format!("move from {} to {}", curr, next)
                             }
 
                             // Char left
@@ -433,10 +428,7 @@ impl InteractiveApp {
                                 };
                             }
 
-                            // --- debug catch-all ---
-                            (code, mods) => {
-                                self.alert = format!("code={:?} mods={:?}", code, mods);
-                            }
+                            _ => {}
                         }
                     }
 

@@ -1,14 +1,15 @@
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Position, Rect},
-    style::{Color, Modifier, Style, Stylize},
+    style::{Style, Stylize},
     text::{Line, Span, Text},
     widgets::{List, ListState},
 };
 
+use super::theme;
 use crate::{
     config::QuickSelectHint,
-    print::BRANCH_INDEX_PADD,
+    print::INDEX_PADD,
     tui::{BranchIndex, InputMode, InteractiveApp, Row},
     types::{Branch, Head, Worktree},
 };
@@ -72,31 +73,28 @@ impl InteractiveApp {
                     search_area.x + self.character_index as u16,
                     search_area.y,
                 ));
-                Style::default().add_modifier(Modifier::SLOW_BLINK)
+                Style::default()
             }
         };
 
         frame.render_widget(
             Text::from(search_string)
-                .bg(Color::DarkGray)
+                .fg(theme::MUTED)
                 .patch_style(cursor_style),
             search_area,
         );
 
-        frame.render_widget(Text::from(quick_select_hint).bg(Color::DarkGray), hint_area);
+        frame.render_widget(Text::from(quick_select_hint).fg(theme::MUTED), hint_area);
     }
 
     fn render_status(&self, frame: &mut Frame, area: Rect) {
-        let status_span = match self.input_mode {
-            InputMode::Normal => "   NORMAL",
-            InputMode::Editing => "   INPUT",
+        let mode = match self.input_mode {
+            InputMode::Normal => "[NORMAL]",
+            InputMode::Editing => "[INPUT]",
         };
 
-        let alert_span = format!("     {}", self.alert);
-
         frame.render_widget(
-            Line::from(vec![Span::from(status_span), Span::from(alert_span)])
-                .bg(Color::Rgb(15, 23, 43)),
+            Line::from(Span::from(format!("{INDEX_PADD}{mode}"))).fg(theme::STATUS_BAR),
             area,
         );
     }
@@ -138,7 +136,7 @@ impl InteractiveApp {
                         render_branch(branch, format!(" {idx} "), longest_entry)
                     }
                     BranchIndex::Bare => {
-                        render_branch(branch, BRANCH_INDEX_PADD.to_string(), longest_entry)
+                        render_branch(branch, INDEX_PADD.to_string(), longest_entry)
                     }
                     BranchIndex::Head => render_head(&self.head),
                 },
@@ -147,7 +145,7 @@ impl InteractiveApp {
             })
             .collect();
 
-        let list = List::new(items).highlight_style(Style::new().bg(Color::LightGreen));
+        let list = List::new(items).highlight_style(Style::new().fg(theme::HIGHLIGHT));
 
         frame.render_stateful_widget(list, area, list_state);
     }
@@ -155,27 +153,27 @@ impl InteractiveApp {
 
 fn render_head(h: &'_ Head) -> Line<'_> {
     Line::from(vec![
-        Span::from(BRANCH_INDEX_PADD),
-        Span::from(h.label()).bg(Color::Cyan),
+        Span::from(INDEX_PADD),
+        Span::from(h.label()).fg(theme::HEAD),
     ])
 }
 
 fn render_branch(b: &'_ Branch, index_label: String, max_entry_len: usize) -> Line<'_> {
     Line::from(vec![
-        Span::from(index_label).bg(Color::DarkGray),
-        Span::from(format!("{:width$}", b.name, width = max_entry_len)).bg(Color::White),
+        Span::from(index_label).fg(theme::BRANCH_INDEX),
+        Span::from(format!("{:width$}", b.name, width = max_entry_len)).fg(theme::BRANCH),
     ])
 }
 
 fn render_worktree(w: &'_ Worktree, max_entry_len: usize, max_dir_len: usize) -> Line<'_> {
     Line::from(vec![
-        "   ".into(),
-        Span::from(format!("{:width$}", w.head.label(), width = max_entry_len)).bg(Color::Blue),
+        Span::from(INDEX_PADD),
+        Span::from(format!("{:width$}", w.head.label(), width = max_entry_len)).fg(theme::WORKTREE),
         Span::from(format!(
             "  {:width$}",
             w.dir.to_string_lossy(),
             width = max_dir_len
         ))
-        .bg(Color::DarkGray),
+        .fg(theme::WORKTREE_DIR),
     ])
 }
