@@ -2,11 +2,42 @@ use std::{
     collections::{HashMap, HashSet},
     fs::{self, File},
     io::{BufReader, BufWriter},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
+
+pub struct MainWorktree {
+    pub project_root_dir: PathBuf,
+}
+
+/// The name of the hidden directory created within the target Git repository
+/// to store jump-related metadata.
+pub const JUMP_FOLDER: &str = ".jump";
+
+/// The name of the JSON file where branch usage history and timestamps are saved.
+pub const DATA_FILE: &str = "data.json";
+
+impl MainWorktree {
+    pub fn root(&self) -> &Path {
+        &self.project_root_dir
+    }
+
+    pub fn git_dir(&self) -> PathBuf {
+        self.project_root_dir.join(".git")
+    }
+
+    pub fn jump_dir(&self) -> PathBuf {
+        self.root().join(JUMP_FOLDER)
+    }
+
+    pub fn data_file(&self) -> PathBuf {
+        self.jump_dir().join(DATA_FILE)
+    }
+}
+
+// ---
 
 type BranchCollection = HashMap<String, u64>;
 

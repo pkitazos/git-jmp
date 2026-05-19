@@ -2,11 +2,8 @@ use anyhow::anyhow;
 use clap::Parser;
 
 use crate::{
-    cmd::Run,
-    git::git_command,
-    print::render_branch_deletion_res,
-    storage::delete_jump_data_branch,
-    types::{GitJumpError, Model},
+    cmd::Run, error::GitJumpError, git::git_command, model::Model,
+    print::render_branch_deletion_res, storage::delete_jump_data_branch,
 };
 
 #[derive(Debug, Parser)]

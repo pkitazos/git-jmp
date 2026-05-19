@@ -17,9 +17,10 @@ use crate::{
         new::New,
         rename::Rename,
     },
-    config, init,
+    config,
+    error::GitJumpError,
     list::get_active_worktree,
-    types::{GitJumpError, Model},
+    model::Model,
 };
 
 pub const NAME: &str = "git-jmp";
@@ -89,7 +90,7 @@ impl Cli {
 
     pub fn run(self) -> Result<(), GitJumpError> {
         // todo: when I support the `--inlude-remotes` flag, that needs to be passed to `init`
-        let state = init::init()?;
+        let state = Model::init()?;
 
         let mut app_config = config::get(&state.main_worktree.jump_dir())?;
 

@@ -4,8 +4,9 @@ use crossterm::style::Stylize;
 
 use crate::{
     cmd::delete::BranchDeleteResult,
+    error::GitJumpError,
     list::worktree_branch_names,
-    types::{GitJumpError, Head, Worktree},
+    types::{Head, Worktree},
 };
 
 pub const BRANCH_INDEX_PADD: &str = "   ";

@@ -1,11 +1,8 @@
 use clap::Parser;
 
 use crate::{
-    cmd::Run,
-    git::git_command,
-    list::get_active_worktree,
-    storage::rename_jump_data_branch,
-    types::{GitJumpError, Head, Model},
+    cmd::Run, error::GitJumpError, git::git_command, list::get_active_worktree, model::Model,
+    storage::rename_jump_data_branch, types::Head,
 };
 
 #[derive(Debug, Parser)]

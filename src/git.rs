@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, anyhow};
 use std::{path::PathBuf, process::Command};
 
-use crate::types::MainWorktree;
+use crate::storage::MainWorktree;
 
 pub struct GitDirs {
     pub main_worktree: MainWorktree,

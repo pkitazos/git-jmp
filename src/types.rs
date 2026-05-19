@@ -1,46 +1,8 @@
 use std::{
     cmp,
-    path::{Path, PathBuf},
+    path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
-use thiserror::Error;
-
-pub struct Model {
-    pub main_worktree: MainWorktree,
-    pub active_worktree: PathBuf,
-
-    pub branches: Vec<Branch>,
-    pub worktrees: Vec<Worktree>,
-}
-
-pub struct MainWorktree {
-    pub project_root_dir: PathBuf,
-}
-
-/// The name of the hidden directory created within the target Git repository
-/// to store jump-related metadata.
-pub const JUMP_FOLDER: &str = ".jump";
-
-/// The name of the JSON file where branch usage history and timestamps are saved.
-pub const DATA_FILE: &str = "data.json";
-
-impl MainWorktree {
-    pub fn root(&self) -> &Path {
-        &self.project_root_dir
-    }
-
-    pub fn git_dir(&self) -> PathBuf {
-        self.project_root_dir.join(".git")
-    }
-
-    pub fn jump_dir(&self) -> PathBuf {
-        self.root().join(JUMP_FOLDER)
-    }
-
-    pub fn data_file(&self) -> PathBuf {
-        self.jump_dir().join(DATA_FILE)
-    }
-}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Branch {
@@ -143,28 +105,4 @@ pub fn now() -> u64 {
         Ok(n) => n.as_secs(),
         Err(_) => u64::MAX,
     }
-}
-
-#[derive(Error, Debug)]
-pub enum GitJumpError {
-    #[error("Failed to create branch")]
-    BranchCreation(#[source] anyhow::Error),
-
-    #[error("Failed to rename branch")]
-    BranchRenaming(#[source] anyhow::Error),
-
-    #[error("{target} does not match any branch")]
-    NoMatch { target: String },
-
-    #[error("Failed to switch branch")]
-    SwitchFailed(#[source] anyhow::Error),
-
-    #[error("Can't rename: HEAD is detached, specify the branch explicitly")]
-    DetachedHead,
-
-    #[error("")]
-    SilentExit,
-
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
 }

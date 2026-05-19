@@ -1,10 +1,8 @@
 use clap::Parser;
 
 use crate::{
-    cmd::Run,
-    git::git_command,
-    storage::update_branch_last_switch,
-    types::{GitJumpError, Model, now},
+    cmd::Run, error::GitJumpError, git::git_command, model::Model,
+    storage::update_branch_last_switch, types::now,
 };
 
 #[derive(Debug, Parser)]
@@ -15,7 +13,7 @@ pub struct New {
 }
 
 impl Run for New {
-    fn run(&self, state: &crate::types::Model) -> Result<(), GitJumpError> {
+    fn run(&self, state: &Model) -> Result<(), GitJumpError> {
         new_sub_command(state, &self.branch_name).map(|res| {
             println!("{res}");
         })
