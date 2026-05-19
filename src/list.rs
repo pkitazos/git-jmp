@@ -2,7 +2,7 @@ use std::{collections::HashSet, path::Path};
 
 use crate::{
     fuzzy_match::fuzzy_match,
-    types::{Branch, Head, RankedSearchList, Worktree},
+    types::{Branch, Head, Worktree},
 };
 
 #[derive(PartialEq, Eq, PartialOrd)]
@@ -46,6 +46,14 @@ pub fn prep_available_worktrees(
 
     available_worktrees.sort();
     available_worktrees
+}
+
+#[derive(Clone)]
+pub struct RankedSearchList {
+    /// all branches you can jump to that match the search input
+    pub available: Vec<Branch>,
+    /// all worktrees that match the search input
+    pub worktrees: Vec<Worktree>,
 }
 
 pub fn generate_ranked_list(
@@ -98,6 +106,14 @@ pub fn generate_ranked_list(
         available,
         worktrees,
     }
+}
+
+pub fn get_active_worktree(worktrees: &[Worktree], active_worktree_dir: &Path) -> Worktree {
+    worktrees
+        .iter()
+        .find(|w| w.dir.eq(&active_worktree_dir))
+        .unwrap()
+        .clone()
 }
 
 #[cfg(test)]

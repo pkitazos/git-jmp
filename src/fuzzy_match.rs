@@ -1,20 +1,3 @@
-fn find_sequential_indices(needle: &str, haystack: &str) -> Option<Vec<usize>> {
-    let mut indices: Vec<usize> = Vec::new();
-    let mut start_index: usize = 0;
-
-    for c in needle.chars() {
-        let found = haystack[start_index..].find(c);
-        match found {
-            None => return None,
-            Some(idx) => {
-                indices.push(idx + start_index);
-                start_index = idx + start_index + 1;
-            }
-        }
-    }
-    Some(indices)
-}
-
 const PREFIX_WINDOW: usize = 3;
 
 pub fn fuzzy_match(search: &str, target: &str) -> usize {
@@ -35,6 +18,23 @@ pub fn fuzzy_match(search: &str, target: &str) -> usize {
         .count();
 
     1 + prefix_bonus + continuity_bonus
+}
+
+fn find_sequential_indices(needle: &str, haystack: &str) -> Option<Vec<usize>> {
+    let mut indices: Vec<usize> = Vec::new();
+    let mut start_index: usize = 0;
+
+    for c in needle.chars() {
+        let found = haystack[start_index..].find(c);
+        match found {
+            None => return None,
+            Some(idx) => {
+                indices.push(idx + start_index);
+                start_index = idx + start_index + 1;
+            }
+        }
+    }
+    Some(indices)
 }
 
 #[cfg(test)]

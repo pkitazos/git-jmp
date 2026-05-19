@@ -1,43 +1,16 @@
-use crate::{app::InteractiveApp, system::InitData, utils::now};
-use anyhow::Result;
 use std::{
     cmp,
     path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
 };
 use thiserror::Error;
 
 pub struct Model {
     pub main_worktree: MainWorktree,
     pub active_worktree: PathBuf,
-    pub modifier_key: ModifierKey,
-    pub columns: usize,
-    pub rows: usize,
-    pub max_rows: usize,
+
     pub branches: Vec<Branch>,
     pub worktrees: Vec<Worktree>,
-    pub interactive_state: Option<InteractiveApp>,
-}
-
-impl Model {
-    pub fn new(data: InitData) -> Result<Model> {
-        let (columns, rows) = crossterm::terminal::size()?;
-
-        Ok(Model {
-            main_worktree: data.main_worktree,
-            active_worktree: data.active_worktree,
-            columns: columns as usize,
-            rows: rows as usize,
-            max_rows: rows as usize,
-            branches: data.branches,
-            worktrees: data.worktrees,
-            modifier_key: if std::env::consts::OS == "macos" {
-                ModifierKey::Option
-            } else {
-                ModifierKey::Alt
-            },
-            interactive_state: None,
-        })
-    }
 }
 
 pub struct MainWorktree {
@@ -67,11 +40,6 @@ impl MainWorktree {
     pub fn data_file(&self) -> PathBuf {
         self.jump_dir().join(DATA_FILE)
     }
-}
-
-pub enum ModifierKey {
-    Alt,
-    Option,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -119,14 +87,6 @@ impl Ord for Worktree {
             .cmp(&other.head)
             .then_with(|| self.dir.cmp(&other.dir))
     }
-}
-
-pub fn get_active_worktree(worktrees: &[Worktree], active_worktree_dir: &Path) -> Worktree {
-    worktrees
-        .iter()
-        .find(|w| w.dir.eq(&active_worktree_dir))
-        .unwrap()
-        .clone()
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -178,12 +138,11 @@ impl Ord for Head {
     }
 }
 
-#[derive(Clone)]
-pub struct RankedSearchList {
-    /// all branches you can jump to that match the search input
-    pub available: Vec<Branch>,
-    /// all worktrees that match the search input
-    pub worktrees: Vec<Worktree>,
+pub fn now() -> u64 {
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(n) => n.as_secs(),
+        Err(_) => u64::MAX,
+    }
 }
 
 #[derive(Error, Debug)]
@@ -203,11 +162,9 @@ pub enum GitJumpError {
     #[error("Can't rename: HEAD is detached, specify the branch explicitly")]
     DetachedHead,
 
+    #[error("")]
+    SilentExit,
+
     #[error(transparent)]
     Other(#[from] anyhow::Error),
-}
-
-pub enum BranchDeleteResult {
-    Deleted(String),        // branch name
-    Failed(String, String), // branch name, reason
 }

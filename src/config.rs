@@ -1,7 +1,12 @@
 use anyhow::Result;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
+
+use crate::cmd::NAME;
 
 #[derive(Debug, Clone, Default)]
 pub struct Config {
@@ -53,7 +58,23 @@ pub enum QuickSelectHint {
     Hidden,
 }
 
-pub fn parse_config(path: PathBuf) -> Result<PartialConfig> {
+pub fn get(jump_dir: &Path) -> Result<Config> {
+    let global_config = match dirs::config_dir() {
+        Some(parent_dir) => parse_config(parent_dir.join(NAME).join("config.toml"))?,
+        None => PartialConfig::default(),
+    };
+    let global_appearance = global_config.appearance.clone();
+    match global_appearance {
+        Some(g) => eprintln!("we got: {:#?}", g),
+        None => eprintln!("no global apperrance settings"),
+    };
+
+    let local_config = parse_config(jump_dir.join("config.toml"))?;
+
+    Ok(merge(global_config, local_config))
+}
+
+fn parse_config(path: PathBuf) -> Result<PartialConfig> {
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
         Err(err) => {
@@ -67,7 +88,7 @@ pub fn parse_config(path: PathBuf) -> Result<PartialConfig> {
     Ok(config)
 }
 
-pub fn merge(global: PartialConfig, local: PartialConfig) -> Config {
+fn merge(global: PartialConfig, local: PartialConfig) -> Config {
     let zero = Config::default();
 
     let PartialGeneral {
