@@ -8,7 +8,7 @@ pub mod rename;
 use clap::{Parser, Subcommand};
 
 use crate::{
-    app::AppExitStatus,
+    branch::get_active_worktree,
     cmd::{
         delete::Delete,
         interactive::jump,
@@ -19,8 +19,8 @@ use crate::{
     },
     config,
     error::GitJumpError,
-    list::get_active_worktree,
     model::Model,
+    tui::AppExitStatus,
 };
 
 pub const NAME: &str = "git-jmp";
