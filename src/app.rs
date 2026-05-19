@@ -1,25 +1,67 @@
-use std::iter;
-
-use crate::{
-    config::{Config, QuickSelectHint},
-    input::{next_word_boundary, prev_word_boundary},
-    list::generate_ranked_list,
-    types::{Branch, Head, RankedSearchList, Worktree},
-    ui::BRANCH_INDEX_PADD,
-};
 use anyhow::{Context, Result};
-use crossterm::event::{self, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::{
+    ExecutableCommand,
+    event::{self, KeyCode, KeyEventKind, KeyModifiers},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+};
 use ratatui::{
-    DefaultTerminal, Frame,
+    DefaultTerminal, Frame, Terminal,
+    backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Position, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span, Text},
     widgets::{List, ListState},
 };
+use std::{env, fmt::Display, io::stdout, iter};
+
+use crate::{
+    config::{Config, QuickSelectHint},
+    list::{RankedSearchList, generate_ranked_list},
+    print::BRANCH_INDEX_PADD,
+    types::{Branch, Head, Worktree},
+};
+
+pub struct TerminalGuard;
+
+impl TerminalGuard {
+    pub fn enter() -> Result<Self> {
+        stdout().execute(EnterAlternateScreen)?;
+        stdout().execute(crossterm::event::DisableMouseCapture)?;
+        enable_raw_mode()?;
+        let backend = CrosstermBackend::new(stdout());
+        let mut terminal = Terminal::new(backend)?;
+        terminal.clear()?;
+        Ok(TerminalGuard)
+    }
+}
+
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        let _ = disable_raw_mode();
+        let _ = stdout().execute(LeaveAlternateScreen);
+    }
+}
+
+enum ModifierKey {
+    Alt,
+    Option,
+}
+
+impl Display for ModifierKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let modifier = match self {
+            ModifierKey::Alt => "Alt",
+            ModifierKey::Option => "⌥",
+        };
+        write!(f, "{modifier}")
+    }
+}
 
 pub struct InteractiveApp {
     vim_mode: bool,
     quick_select_hint: QuickSelectHint,
+
+    modifier: ModifierKey,
 
     character_index: usize,
     input_mode: InputMode,
@@ -91,6 +133,12 @@ impl InteractiveApp {
         Self {
             vim_mode: config.general.vim_mode,
             quick_select_hint: config.appearance.quick_select_hint,
+            // not sure if this is okay or not
+            modifier: if env::consts::OS == "macos" {
+                ModifierKey::Option
+            } else {
+                ModifierKey::Alt
+            },
 
             input_mode: if config.general.vim_mode {
                 InputMode::Normal
@@ -286,7 +334,7 @@ impl InteractiveApp {
                             (KeyCode::Left, KeyModifiers::ALT)
                             | (KeyCode::Char('b'), KeyModifiers::ALT) => {
                                 let curr = self.character_index;
-                                let next = prev_word_boundary(
+                                let next = cursor_nav::prev_word_boundary(
                                     self.view.search_string(),
                                     self.character_index,
                                 );
@@ -298,7 +346,7 @@ impl InteractiveApp {
                             (KeyCode::Right, KeyModifiers::ALT)
                             | (KeyCode::Char('f'), KeyModifiers::ALT) => {
                                 let curr = self.character_index;
-                                let next = next_word_boundary(
+                                let next = cursor_nav::next_word_boundary(
                                     self.view.search_string(),
                                     self.character_index,
                                 );
@@ -320,7 +368,7 @@ impl InteractiveApp {
 
                             // Delete word backward
                             (KeyCode::Backspace, KeyModifiers::ALT) => {
-                                let stop = prev_word_boundary(
+                                let stop = cursor_nav::prev_word_boundary(
                                     self.view.search_string(),
                                     self.character_index,
                                 );
@@ -455,8 +503,10 @@ impl InteractiveApp {
 
     fn render_search_row(&self, frame: &mut Frame, area: Rect) {
         let quick_select_hint = match self.quick_select_hint {
-            QuickSelectHint::Full => format!("⌥+0..{} quick select", self.branches.len()),
-            QuickSelectHint::Compact => format!("⌥+0..{}", self.branches.len()),
+            QuickSelectHint::Full => {
+                format!("{}+0..{} quick select", self.modifier, self.branches.len())
+            }
+            QuickSelectHint::Compact => format!("{}+0..{}", self.modifier, self.branches.len()),
             QuickSelectHint::Hidden => "".to_string(),
         };
 
@@ -589,4 +639,179 @@ fn render_worktree(w: &'_ Worktree, max_entry_len: usize, max_dir_len: usize) ->
         ))
         .bg(Color::DarkGray),
     ])
+}
+
+mod cursor_nav {
+    pub fn next_word_boundary(text: &str, pos: usize) -> usize {
+        let chars: Vec<char> = text.chars().collect();
+        let mut i = pos;
+
+        while i < chars.len() && is_breakpoint(chars[i]) {
+            i += 1;
+        }
+
+        while i < chars.len() && !is_breakpoint(chars[i]) {
+            i += 1;
+        }
+
+        i
+    }
+
+    pub fn prev_word_boundary(text: &str, pos: usize) -> usize {
+        let chars: Vec<char> = text.chars().collect();
+        let mut i = pos;
+
+        while i > 0 && is_breakpoint(chars[i - 1]) {
+            i -= 1;
+        }
+
+        while i > 0 && !is_breakpoint(chars[i - 1]) {
+            i -= 1;
+        }
+
+        i
+    }
+
+    fn is_breakpoint(c: char) -> bool {
+        matches!(c, ' ' | '-' | '/' | '.' | '_')
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_next_word_boundary_at_end() {
+            assert_eq!(next_word_boundary("hello", 5), 5);
+        }
+
+        #[test]
+        fn test_next_word_boundary_empty() {
+            assert_eq!(next_word_boundary("", 0), 0);
+        }
+
+        #[test]
+        fn test_next_word_boundary_dash() {
+            assert_eq!(next_word_boundary("foo-bar", 0), 3);
+            assert_eq!(next_word_boundary("foo-bar", 3), 7);
+        }
+
+        #[test]
+        fn test_next_word_boundary_slash() {
+            assert_eq!(next_word_boundary("src/lib/main", 0), 3);
+            assert_eq!(next_word_boundary("src/lib/main", 3), 7);
+            assert_eq!(next_word_boundary("src/lib/main", 7), 12);
+        }
+
+        #[test]
+        fn test_next_word_boundary_dot() {
+            assert_eq!(next_word_boundary("foo.bar.baz", 0), 3);
+            assert_eq!(next_word_boundary("foo.bar.baz", 3), 7);
+            assert_eq!(next_word_boundary("foo.bar.baz", 7), 11);
+        }
+
+        #[test]
+        fn test_next_word_boundary_underscore() {
+            assert_eq!(next_word_boundary("snake_case_name", 0), 5);
+            assert_eq!(next_word_boundary("snake_case_name", 5), 10);
+            assert_eq!(next_word_boundary("snake_case_name", 10), 15);
+        }
+
+        #[test]
+        fn test_next_word_boundary_consecutive_breakpoints() {
+            assert_eq!(next_word_boundary("foo--bar", 0), 3);
+            assert_eq!(next_word_boundary("foo--bar", 3), 8);
+        }
+
+        #[test]
+        fn test_next_word_boundary_mixed_breakpoints() {
+            assert_eq!(next_word_boundary("src/my_lib.rs", 0), 3);
+            assert_eq!(next_word_boundary("src/my_lib.rs", 3), 6);
+            assert_eq!(next_word_boundary("src/my_lib.rs", 6), 10);
+            assert_eq!(next_word_boundary("src/my_lib.rs", 10), 13);
+        }
+
+        // prev_word_boundary tests
+
+        #[test]
+        fn test_prev_word_boundary_from_end() {
+            assert_eq!(prev_word_boundary("hello world", 11), 6);
+        }
+
+        #[test]
+        fn test_prev_word_boundary_from_space() {
+            assert_eq!(prev_word_boundary("hello world", 5), 0);
+        }
+
+        #[test]
+        fn test_prev_word_boundary_mid_word() {
+            assert_eq!(prev_word_boundary("hello world", 8), 6);
+        }
+
+        #[test]
+        fn test_prev_word_boundary_at_start() {
+            assert_eq!(prev_word_boundary("hello", 0), 0);
+        }
+
+        #[test]
+        fn test_prev_word_boundary_empty() {
+            assert_eq!(prev_word_boundary("", 0), 0);
+        }
+
+        #[test]
+        fn test_prev_word_boundary_dash() {
+            assert_eq!(prev_word_boundary("foo-bar", 7), 4);
+            assert_eq!(prev_word_boundary("foo-bar", 3), 0);
+        }
+
+        #[test]
+        fn test_prev_word_boundary_slash() {
+            assert_eq!(prev_word_boundary("src/lib/main", 12), 8);
+            assert_eq!(prev_word_boundary("src/lib/main", 7), 4);
+            assert_eq!(prev_word_boundary("src/lib/main", 3), 0);
+        }
+
+        #[test]
+        fn test_prev_word_boundary_dot() {
+            assert_eq!(prev_word_boundary("foo.bar.baz", 11), 8);
+            assert_eq!(prev_word_boundary("foo.bar.baz", 7), 4);
+        }
+
+        #[test]
+        fn test_prev_word_boundary_underscore() {
+            assert_eq!(prev_word_boundary("snake_case_name", 15), 11);
+            assert_eq!(prev_word_boundary("snake_case_name", 10), 6);
+            assert_eq!(prev_word_boundary("snake_case_name", 5), 0);
+        }
+
+        #[test]
+        fn test_prev_word_boundary_consecutive_breakpoints() {
+            assert_eq!(prev_word_boundary("foo--bar", 8), 5);
+            assert_eq!(prev_word_boundary("foo--bar", 3), 0);
+        }
+
+        #[test]
+        fn test_prev_word_boundary_mixed_breakpoints() {
+            assert_eq!(prev_word_boundary("src/my_lib.rs", 13), 11);
+            assert_eq!(prev_word_boundary("src/my_lib.rs", 10), 7);
+            assert_eq!(prev_word_boundary("src/my_lib.rs", 6), 4);
+            assert_eq!(prev_word_boundary("src/my_lib.rs", 3), 0);
+        }
+
+        #[test]
+        fn test_next_prev_roundtrip_from_word_starts() {
+            // prev(next(start)) == start when starting from a word-start boundary
+            let word_end = next_word_boundary("src/my_lib.rs", 4);
+            let back_to_start = prev_word_boundary("src/my_lib.rs", word_end);
+            assert_eq!(back_to_start, 4);
+        }
+
+        #[test]
+        fn test_prev_next_roundtrip_from_word_ends() {
+            // next(prev(end)) == end when starting from a word-end boundary
+            let word_start = prev_word_boundary("src/my_lib.rs", 10);
+            let back_to_end = next_word_boundary("src/my_lib.rs", word_start);
+            assert_eq!(back_to_end, 10);
+        }
+    }
 }

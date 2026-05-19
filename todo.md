@@ -1,9 +1,6 @@
 # Todo
+
 - [ ] actually fix the interactive app styles to not use the blocky look
-- [x] configurable interactive prompt (option to hide the quick select helper text, set vim mode)
-- [x] couple more flags 
-  - `--include-remotes` / `-r` to list (haven't figured out a nice way to do it in interactive mode yet)
-  - `--vim-mode` to interactive
 
 
 ## Configuration
@@ -20,12 +17,13 @@ theme = "default" # theme support comes in later
 
 ## Before release
 
-- [ ] write tests
+- [x] write tests
 - [ ] remove debug clause from interactive app
 - [ ] decide where to do the semver check
 - [ ] update license
 - [ ] update readme
 - [ ] update name
+- [ ] rename repo
 - [ ] update help messages
-- [ ] open issue upstream
 - [ ] unlink from fork network
+- [ ] open issue upstream

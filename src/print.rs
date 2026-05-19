@@ -3,8 +3,9 @@ use std::io::{self, IsTerminal};
 use crossterm::style::Stylize;
 
 use crate::{
+    cmd::delete::BranchDeleteResult,
     list::worktree_branch_names,
-    types::{BranchDeleteResult, GitJumpError, Head, Worktree},
+    types::{GitJumpError, Head, Worktree},
 };
 
 pub const BRANCH_INDEX_PADD: &str = "   ";
@@ -50,6 +51,8 @@ pub fn render_git_jump_error(err: GitJumpError) {
         ),
 
         GitJumpError::Other(e) => ("Error".to_string(), e.to_string()),
+
+        GitJumpError::SilentExit => return,
     };
 
     eprintln!("{}", title.red().bold());

@@ -2,7 +2,6 @@ use anyhow::{Context, Result, anyhow};
 use regex::Regex;
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 use std::{
     fs::{self, File},
@@ -13,7 +12,7 @@ use std::sync::LazyLock;
 
 use crate::git::{RawWorktree, locate_git_repo_dirs, read_raw_git_branches, read_raw_worktrees};
 use crate::storage::{clean_and_save_jump_data, load_jump_data};
-use crate::types::{Branch, Head, JUMP_FOLDER, MainWorktree, Worktree};
+use crate::types::{Branch, Head, JUMP_FOLDER, MainWorktree, Model, Worktree};
 
 // so the reason these can't just be constant values is that initialising a Regex
 // only happens at runtime, because for potentially very large patterns constructing the NFA/DF
@@ -49,14 +48,7 @@ pub fn fetch_latest_version() -> Result<String> {
     }
 }
 
-pub struct InitData {
-    pub main_worktree: MainWorktree,
-    pub active_worktree: PathBuf,
-    pub branches: Vec<Branch>,
-    pub worktrees: Vec<Worktree>,
-}
-
-pub fn init() -> Result<InitData> {
+pub fn init() -> Result<Model> {
     let dirs = locate_git_repo_dirs()?;
 
     ensure_jump_folder_exists(&dirs.main_worktree)?;
@@ -74,7 +66,7 @@ pub fn init() -> Result<InitData> {
     let branches = construct_branches(&branch_names, &jump_data);
     let worktrees = construct_worktrees(raw_worktrees, &jump_data);
 
-    Ok(InitData {
+    Ok(Model {
         main_worktree: dirs.main_worktree,
         active_worktree: dirs.active_worktree,
         branches,
