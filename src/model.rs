@@ -3,6 +3,7 @@ use regex::Regex;
 
 use std::collections::HashMap;
 
+use std::path::PathBuf;
 use std::{
     fs::{self, File},
     io::Write,
@@ -11,8 +12,46 @@ use std::{
 use std::sync::LazyLock;
 
 use crate::git::{RawWorktree, locate_git_repo_dirs, read_raw_git_branches, read_raw_worktrees};
-use crate::storage::{clean_and_save_jump_data, load_jump_data};
-use crate::types::{Branch, Head, JUMP_FOLDER, MainWorktree, Model, Worktree};
+use crate::storage::{JUMP_FOLDER, MainWorktree, clean_and_save_jump_data, load_jump_data};
+use crate::types::{Branch, Head, Worktree};
+
+pub struct Model {
+    pub main_worktree: MainWorktree,
+    pub active_worktree: PathBuf,
+
+    pub branches: Vec<Branch>,
+    pub worktrees: Vec<Worktree>,
+}
+
+impl Model {
+    pub fn init() -> Result<Self> {
+        let dirs = locate_git_repo_dirs()?;
+
+        ensure_jump_folder_exists(&dirs.main_worktree)?;
+
+        let branch_names = read_raw_git_branches()?;
+        let raw_worktrees = read_raw_worktrees()?;
+
+        let mut jump_data = load_jump_data(&dirs.main_worktree.data_file())?;
+        clean_and_save_jump_data(
+            &dirs.main_worktree.data_file(),
+            &mut jump_data,
+            &branch_names,
+        )?;
+
+        let branches = construct_branches(&branch_names, &jump_data);
+        let worktrees = construct_worktrees(raw_worktrees, &jump_data);
+
+        Ok(Self {
+            main_worktree: dirs.main_worktree,
+            active_worktree: dirs.active_worktree,
+            branches,
+            worktrees,
+        })
+    }
+}
+
+// ---
 
 // so the reason these can't just be constant values is that initialising a Regex
 // only happens at runtime, because for potentially very large patterns constructing the NFA/DF
@@ -25,7 +64,7 @@ fn semver_exact_pattern(haystack: &str) -> bool {
 }
 
 // todo: figure out where this should be called
-pub fn fetch_latest_version() -> Result<String> {
+fn fetch_latest_version() -> Result<String> {
     let response: serde_json::Value =
         ureq::get("https://api.github.com/repos/pkitazos/git-jump/releases/latest")
             .header("User-Agent", "git-jump")
@@ -46,32 +85,6 @@ pub fn fetch_latest_version() -> Result<String> {
     } else {
         Err(anyhow!("tag '{}' is not a valid semver version", tag))
     }
-}
-
-pub fn init() -> Result<Model> {
-    let dirs = locate_git_repo_dirs()?;
-
-    ensure_jump_folder_exists(&dirs.main_worktree)?;
-
-    let branch_names = read_raw_git_branches()?;
-    let raw_worktrees = read_raw_worktrees()?;
-
-    let mut jump_data = load_jump_data(&dirs.main_worktree.data_file())?;
-    clean_and_save_jump_data(
-        &dirs.main_worktree.data_file(),
-        &mut jump_data,
-        &branch_names,
-    )?;
-
-    let branches = construct_branches(&branch_names, &jump_data);
-    let worktrees = construct_worktrees(raw_worktrees, &jump_data);
-
-    Ok(Model {
-        main_worktree: dirs.main_worktree,
-        active_worktree: dirs.active_worktree,
-        branches,
-        worktrees,
-    })
 }
 
 fn ensure_jump_folder_exists(main_worktree: &MainWorktree) -> Result<()> {

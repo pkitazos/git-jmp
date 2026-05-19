@@ -6,7 +6,8 @@ use crate::{
     app::{AppExitStatus, InteractiveApp, TerminalGuard},
     config::Config,
     list::{prep_available_branches, prep_available_worktrees},
-    types::{Model, Worktree},
+    model::Model,
+    types::Worktree,
 };
 
 pub fn jump(state: &Model, app_config: Config, active: &Worktree) -> Result<AppExitStatus> {

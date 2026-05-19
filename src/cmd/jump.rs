@@ -2,10 +2,12 @@ use std::path::Path;
 
 use crate::{
     cmd::Run,
+    error::GitJumpError,
     git::git_command,
     list::{generate_ranked_list, get_active_worktree},
+    model::Model,
     storage::update_branch_last_switch,
-    types::{GitJumpError, Model, now},
+    types::now,
 };
 
 pub struct JumpTo {

@@ -2,10 +2,11 @@ use clap::Parser;
 
 use crate::{
     cmd::Run,
+    error::GitJumpError,
     git::{fetch_remote_branches, fetch_remotes},
     list::get_active_worktree,
+    model::Model,
     print::render_branch_list,
-    types::{GitJumpError, Model},
 };
 
 #[derive(Debug, Parser)]
