@@ -94,7 +94,11 @@ impl InteractiveApp {
         };
 
         frame.render_widget(
-            Line::from(Span::from(format!("{INDEX_PADD}{mode}"))).fg(theme::STATUS_BAR),
+            Line::from(vec![
+                Span::from(format!("{INDEX_PADD}{mode}")),
+                Span::from(format!("{}", &self.alert)),
+            ])
+            .fg(theme::STATUS_BAR),
             area,
         );
     }

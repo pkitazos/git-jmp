@@ -21,6 +21,7 @@ use crate::{
     error::GitJumpError,
     model::Model,
     tui::AppExitStatus,
+    version::check_pkg_version,
 };
 
 pub const NAME: &str = "git-jmp";
@@ -93,12 +94,12 @@ impl Cli {
         let state = Model::init()?;
 
         let mut app_config = config::get(&state.main_worktree.jump_dir())?;
-
+        let check_for_update = app_config.general.auto_check_updates;
         if self.vim_mode {
             app_config.general.vim_mode = true
         }
 
-        match self.into_invocation() {
+        let res = match self.into_invocation() {
             Invocation::Interactive => {
                 let active = get_active_worktree(&state.worktrees, &state.active_worktree);
 
@@ -137,6 +138,12 @@ impl Cli {
 
             Invocation::JumpTo(cmd) => cmd.run(&state),
             Invocation::Sub(cmd) => cmd.run(&state),
-        }
+        };
+
+        res.inspect(|_| {
+            if check_for_update {
+                check_pkg_version();
+            }
+        })
     }
 }

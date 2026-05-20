@@ -1,5 +1,4 @@
-use anyhow::{Context, Result, anyhow};
-use regex::Regex;
+use anyhow::{Result, anyhow};
 
 use std::collections::HashMap;
 
@@ -8,8 +7,6 @@ use std::{
     fs::{self, File},
     io::Write,
 };
-
-use std::sync::LazyLock;
 
 use crate::git::{RawWorktree, locate_git_repo_dirs, read_raw_git_branches, read_raw_worktrees};
 use crate::storage::{JUMP_FOLDER, MainWorktree, clean_and_save_jump_data, load_jump_data};
@@ -48,42 +45,6 @@ impl Model {
             branches,
             worktrees,
         })
-    }
-}
-
-// ---
-
-// so the reason these can't just be constant values is that initialising a Regex
-// only happens at runtime, because for potentially very large patterns constructing the NFA/DF
-// may actually require heap allocations and a `const` needs to be compile-time computable
-// so using LazyLock means its computed the first time we need it,
-// but every other time we need it it's using the same computed pattern
-fn semver_exact_pattern(haystack: &str) -> bool {
-    static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\d+\.\d+\.\d+$").unwrap());
-    RE.is_match(haystack)
-}
-
-// todo: figure out where this should be called
-fn fetch_latest_version() -> Result<String> {
-    let response: serde_json::Value =
-        ureq::get("https://api.github.com/repos/pkitazos/git-jump/releases/latest")
-            .header("User-Agent", "git-jump")
-            .call()
-            .context("failed to fetch latest release from GitHub")?
-            .body_mut()
-            .read_json()
-            .context("failed to parse GitHub response")?;
-
-    let tag = response["tag_name"]
-        .as_str()
-        .ok_or_else(|| anyhow!("no tag_name in GitHub response"))?;
-
-    let version = tag.strip_prefix('v').unwrap_or(tag);
-
-    if semver_exact_pattern(version) {
-        Ok(version.to_owned())
-    } else {
-        Err(anyhow!("tag '{}' is not a valid semver version", tag))
     }
 }
 
