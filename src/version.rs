@@ -11,7 +11,7 @@ pub fn check_pkg_version() {
 
     if version != latest_version {
         eprintln!(
-            "{} {} → {}",
+            "\n{} {} → {}",
             "Update available:".bold(),
             version.dark_grey(),
             latest_version.green(),
