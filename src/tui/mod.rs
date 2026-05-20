@@ -235,6 +235,16 @@ impl InteractiveApp {
         }
     }
 
+    fn quick_select(&self, digit: usize) -> Option<AppExitStatus> {
+        self.rows().into_iter().find_map(|row| match row {
+            Row::Branch {
+                branch,
+                index: BranchIndex::QuickSelect(i),
+            } if i == digit => Some(AppExitStatus::Selected(branch)),
+            _ => None,
+        })
+    }
+
     fn make_selection(&mut self, list_state: &ListState) -> Result<AppExitStatus> {
         let idx = list_state.selected().unwrap_or(0);
         let row = self
@@ -276,6 +286,12 @@ impl InteractiveApp {
 
                         (KeyCode::Enter, KeyModifiers::NONE) => {
                             return self.make_selection(&list_state);
+                        }
+
+                        (KeyCode::Char(c @ '0'..='9'), KeyModifiers::ALT) => {
+                            if let Some(status) = self.quick_select(c as usize - '0' as usize) {
+                                return Ok(status);
+                            }
                         }
 
                         _ => {}
@@ -405,6 +421,13 @@ impl InteractiveApp {
                             (KeyCode::Backspace, KeyModifiers::NONE) => {
                                 if self.delete_char() {
                                     list_state.select_first();
+                                }
+                            }
+
+                            // --- quick select ---
+                            (KeyCode::Char(c @ '0'..='9'), KeyModifiers::ALT) => {
+                                if let Some(status) = self.quick_select(c as usize - '0' as usize) {
+                                    return Ok(status);
                                 }
                             }
 
