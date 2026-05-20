@@ -1,11 +1,5 @@
-pub mod delete;
-pub mod interactive;
-pub mod jump;
-pub mod list;
-pub mod new;
-pub mod rename;
-
 use clap::{Parser, Subcommand};
+use crossterm::style::Stylize;
 
 use crate::{
     branch::get_active_worktree,
@@ -23,6 +17,13 @@ use crate::{
     tui::AppExitStatus,
     version::check_pkg_version,
 };
+
+pub mod delete;
+pub mod interactive;
+pub mod jump;
+pub mod list;
+pub mod new;
+pub mod rename;
 
 pub const NAME: &str = "git-jmp";
 
@@ -124,10 +125,10 @@ impl Cli {
                     AppExitStatus::LocatedAt(worktree) => {
                         let dir = worktree.dir.to_string_lossy();
                         println!(
-                            "{} is checked out at {}\nTo switch: cd {}",
-                            worktree.head.label(),
-                            dir,
-                            dir,
+                            "{} is checked out at {}\nTo switch: {}",
+                            worktree.head.label().cyan(),
+                            dir.dark_grey(),
+                            format!("cd {dir}").bold(),
                         );
                         Ok(())
                     }
