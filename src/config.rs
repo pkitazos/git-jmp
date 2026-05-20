@@ -1,10 +1,9 @@
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::{
     fs,
     path::{Path, PathBuf},
 };
-
-use serde::{Deserialize, Serialize};
 
 use crate::cmd::NAME;
 
@@ -14,10 +13,21 @@ pub struct Config {
     pub appearance: Appearance,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct General {
     pub vim_mode: bool,
     pub sources: Vec<RefSource>,
+    pub auto_check_updates: bool,
+}
+
+impl Default for General {
+    fn default() -> Self {
+        Self {
+            vim_mode: Default::default(),
+            sources: Default::default(),
+            auto_check_updates: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -35,6 +45,7 @@ pub struct PartialConfig {
 pub struct PartialGeneral {
     pub vim_mode: Option<bool>,
     pub sources: Option<Vec<RefSource>>,
+    pub auto_check_updates: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -63,11 +74,6 @@ pub fn get(jump_dir: &Path) -> Result<Config> {
         Some(parent_dir) => parse_config(parent_dir.join(NAME).join("config.toml"))?,
         None => PartialConfig::default(),
     };
-    let global_appearance = global_config.appearance.clone();
-    match global_appearance {
-        Some(g) => eprintln!("we got: {:#?}", g),
-        None => eprintln!("no global apperrance settings"),
-    };
 
     let local_config = parse_config(jump_dir.join("config.toml"))?;
 
@@ -94,11 +100,13 @@ fn merge(global: PartialConfig, local: PartialConfig) -> Config {
     let PartialGeneral {
         vim_mode: local_vim,
         sources: local_sources,
+        auto_check_updates: _, // ignored if defined locally
     } = local.general.unwrap_or_default();
 
     let PartialGeneral {
         vim_mode: global_vim,
         sources: global_sources,
+        auto_check_updates: global_auto_check_updates,
     } = global.general.unwrap_or_default();
 
     let PartialAppearance {
@@ -115,6 +123,8 @@ fn merge(global: PartialConfig, local: PartialConfig) -> Config {
             sources: local_sources
                 .or(global_sources)
                 .unwrap_or(zero.general.sources),
+            auto_check_updates: global_auto_check_updates
+                .unwrap_or(zero.general.auto_check_updates),
         },
         appearance: Appearance {
             quick_select_hint: local_quick_hint
@@ -202,6 +212,7 @@ quick_select_hint = "hidden"
         let config = merge(PartialConfig::default(), PartialConfig::default());
         assert_eq!(config.general.vim_mode, false);
         assert!(config.general.sources.is_empty());
+        assert_eq!(config.general.auto_check_updates, true);
         assert_eq!(config.appearance.quick_select_hint, QuickSelectHint::Full);
     }
 
@@ -211,6 +222,7 @@ quick_select_hint = "hidden"
             general: Some(PartialGeneral {
                 vim_mode: Some(true),
                 sources: Some(vec![RefSource::Local]),
+                auto_check_updates: Some(false),
             }),
             appearance: Some(PartialAppearance {
                 quick_select_hint: Some(QuickSelectHint::Compact),
@@ -219,6 +231,7 @@ quick_select_hint = "hidden"
         let config = merge(global, PartialConfig::default());
         assert_eq!(config.general.vim_mode, true);
         assert_eq!(config.general.sources, vec![RefSource::Local]);
+        assert_eq!(config.general.auto_check_updates, false);
         assert_eq!(
             config.appearance.quick_select_hint,
             QuickSelectHint::Compact
@@ -231,6 +244,7 @@ quick_select_hint = "hidden"
             general: Some(PartialGeneral {
                 vim_mode: Some(true),
                 sources: Some(vec![RefSource::Local]),
+                auto_check_updates: Some(false),
             }),
             appearance: Some(PartialAppearance {
                 quick_select_hint: Some(QuickSelectHint::Compact),
@@ -240,6 +254,7 @@ quick_select_hint = "hidden"
             general: Some(PartialGeneral {
                 vim_mode: Some(false),
                 sources: Some(vec![RefSource::Remote("origin".to_string())]),
+                auto_check_updates: Some(true),
             }),
             appearance: Some(PartialAppearance {
                 quick_select_hint: Some(QuickSelectHint::Hidden),
@@ -251,6 +266,7 @@ quick_select_hint = "hidden"
             config.general.sources,
             vec![RefSource::Remote("origin".to_string())]
         );
+        assert_eq!(config.general.auto_check_updates, false);
         assert_eq!(config.appearance.quick_select_hint, QuickSelectHint::Hidden);
     }
 
@@ -260,6 +276,7 @@ quick_select_hint = "hidden"
             general: Some(PartialGeneral {
                 vim_mode: Some(true),
                 sources: Some(vec![RefSource::Local]),
+                auto_check_updates: Some(false),
             }),
             appearance: Some(PartialAppearance {
                 quick_select_hint: Some(QuickSelectHint::Compact),
@@ -275,6 +292,7 @@ quick_select_hint = "hidden"
         let config = merge(global, local);
         assert_eq!(config.general.vim_mode, false);
         assert_eq!(config.general.sources, vec![RefSource::Local]);
+        assert_eq!(config.general.auto_check_updates, false);
         assert_eq!(
             config.appearance.quick_select_hint,
             QuickSelectHint::Compact

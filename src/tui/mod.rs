@@ -105,7 +105,6 @@ impl InteractiveApp {
         Self {
             vim_mode: config.general.vim_mode,
             quick_select_hint: config.appearance.quick_select_hint,
-            // not sure if this is okay or not
             modifier: if env::consts::OS == "macos" {
                 ModifierKey::Option
             } else {

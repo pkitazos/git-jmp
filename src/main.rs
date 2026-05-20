@@ -13,6 +13,7 @@ pub mod print;
 pub mod storage;
 pub mod tui;
 pub mod types;
+pub mod version;
 
 use crate::{cmd::Cli, print::render_git_jump_error};
 
