@@ -1,135 +1,105 @@
 ![git-jump CLI logo](https://raw.githubusercontent.com/pkitazos/git-jump/main/img/readme-banner.png)
 
-# Git Jmp
+# Git-Jmp
 
 Interactive navigation between branches and worktrees.
 
-Give it a ⭐️ if you like it. This really helps.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/pkitazos/git-jump/main/img/demo.gif" alt="git jump interactive interface" width="600px" style="border-radius: 5px;" />
-</p>
+(heavily inspired from [mykolaharmash/git-jump](https://github.com/mykolaharmash/git-jump))
 
 ## Install
 
 ```shell
-npm install -g @pkitazos/git-jump
+cargo install git-jmp
 ```
-<!--or using Homebrew
+
+or using Homebrew
+
 ```shell
-brew tap pkitazos/git-jump
-brew install git-jump
-```-->
+brew install git-jmp
+```
 
 ## Usage
 
-```shell
-git jump
-```
-Run without arguments to launch the interactive UI.
+The tool has to main modes, the interactive switcher and the fuzzy match jump. 
 
-* At first, branches are not sorted. Once you start switching around, `git jump` will track the history and sort the list, so that the most recently used branches are at the top and can be accessed faster.
-* Navigate the list with ↓↑ arrows and hit enter ⏎ to switch into selected branch.
-* On the left hand side of the list you'll see a number next to a brunch name. Use <kbd>Option</kbd>+<kbd>\<number\></kbd> for quick switch (<kbd>Alt</kbd>+<kbd>\<number\></kbd> on Windows and Linux).
-* Start typing to filter the list. The search is fuzzy, you don't have to be precise.
-* Ctrl+C to exit.
+### Interactive Mode
 
-<br />
+Run without arguments to launch the interactive UI:
 
 ```shell
-git jump <branch name>
+git jmp
 ```
-Switches to a branch. When a single argument is provided, `<branch name>` can be just part of the name — `git jump` will look for the best matching local branch if `git switch` doesn't find an exact match.
 
-<br />
+* When you first start using `git jmp` branches will just be sorted alphabetically, but as you start switching around using `git jmp` your jump history is tracked and the list will be sorted with the most recently jumped-to branches near the top of the list for faster switching.
+* You can navigate the list with your arrow keys or, if vim mode is enabled, using `j/k`. Just hit enter to switch to the selected branch.
+* You can filter the list using a fuzzy search, just start typing out a part of the name of the branch you want to jump to and you can narrow down the list.
+* You can also quickly jump to any of your top 10 most recently visited branches using <kbd>Option</kbd>+<kbd>\<number\></kbd>. You might need to configure your terminal settings for the quick jump to work, see [section] below for how to set that up in some popular terminal.
+
+### Direct Jump
+
+If you know where you're going you can just jump there directly without going through the interactive UI. You can write the exact name of the branch or a partial match and `git-jmp` will do its best to get you there. First checking for an exact match and then falling back to a best fuzzy match. If you use feature branches with unique issue numbers, switching between feature branches is now very quick!
 
 ```shell
-git jump [--list | -l]
+git jmp <fuzzy match>
 ```
-Shows a plain list of branches without interactive UI but with sorting.
 
-<br />
+Really, those are the two commands that make this tool useful to me, but for completeness there are a couple more sub-commands for common branch operations that are essentially wrappers over the native git commands which also record and update the jump data.
+
+### new
 
 ```shell
-git jump <branch name> <any native switch arguments>
+git jmp new <branch name>
 ```
 
-You can use `git jump` as a drop-in replacement for [native `git switch`](https://git-scm.com/docs/git-switch). When additional arguments are provided, `git jump` proxies everything directly to `git switch` without fuzzy matching, so `<branch name>` must be exact. This mirrors the behavior of the interactive mode, where switching also requires an exact branch name.
+Runs `git switch --create` under the hood and also makes the new branch the most recently visited branch.
 
-For example `git jump my-branch --discard-changes` works just fine.
-
-<br />
+### mv
 
 ```shell
-git jump new <branch name>
+git jmp mv [<old name>] <new name>
 ```
-Creates a new branch and switches into it. Supports all native parameters of `git switch`, for example `git jump new <branch name> --track origin/main`.
 
-<br />
+Runs `git branch --move` under the hood and also updates the jump data with the new name.
+
+### rm
 
 ```shell
-git jump rename <branch name> <new branch name>
+git jmp rm <branch name> [<branch name>, ...]
 ```
-Renames a branch.
 
-<br />
+Runs `git branch -d` for each of the branches provided and removes that entry from the jump data if the branch was successfully deleted.
+
+
+### ls
 
 ```shell
-git jump delete <branch name> [<branch name>, ...]
-```
-Deletes one or multiple branches. No fuzzy matching here, of course 🙂.
-
-
-## How To Enable <kbd>Option/Alt</kbd>+<kbd>\<number\></kbd> Shortcut
-
-It might be disabled by default in your terminal, here is how to make it work in some apps.
-
-### VS Code integrated terminal
-
-In your VS Code settings (`settings.json`), add:
-
-```json
-"terminal.integrated.macOptionIsMeta": true
+git jmp ls
 ```
 
-### Ghostty
+This one doesn't actually run `git branch`, but it does render the same list. The difference is that if you pipe the output from `ls` into some other command, the formatting is stripped unlike the native `git branch` which keeps the `*` and `+` identifiers. Idk why you would want this, but it's here if you want it?
 
-Add the following to your Ghostty config file (`~/.config/ghostty/config`):
+## Configuration
 
-```
-macos-option-as-alt = true
-```
+You can configure `git-jmp` globally, locally per-project or by passing in flags to given commands. As of right now these are the supported configurations:
 
-> **Note:** A full app restart (not just a new window) may be required for the change to take effect.
+```toml
+[general]
+auto_check_updates = true
+vim_mode = false
 
-### Zed integrated terminal
-
-In your Zed settings (`~/.config/zed/settings.json`), add:
-
-```json
-{
-  "terminal": {
-    "option_as_meta": true
-  }
-}
+[appearance]
+quick_select_hint = "full" # or "compact" or "hidden"
 ```
 
-### iTerm 2
+* `auto_check_updates` is pretty self-explanatory. Since checking for updates requires a network trip, if you'd rather not have `git-jmp` do that, you can just disable this.
 
-In Preferences go to `Profiles`, select your profile and go to `Keys`. At the bottom set `Left Option (⌥) Key` to `Esc+`.
+The other two settings relate to the interactive mode of the tool explained above:
+* `vim_mode` splits the list into two modes: `Normal` where you can just navigate around the interactive list, and `Input` which let's you edit the search input.
+* `quick_select_hint` refers to the hint which is shown on the end of the search input line which explains how you can quick-jump to a particular branch: `"full"` is the verbose default that you can see in the example gif above, `"compact"` only includes the modifier key and number, and `"hidden"` shows nothing.
 
-![iTerm 2 app preferences window](https://raw.githubusercontent.com/pkitazos/git-jump/main/img/iTerm-Option-key@2x.png)
+## Migrating from [mykolaharmash/git-jump](https://github.com/mykolaharmash/git-jump)
 
-### macOS Terminal
+You can just install `git-jmp` and drop it into any project you previously used with `git-jump` and your jump data will be carried over. So in that senes this can act as a drop-in replacement. 
+And you can still use `new`, but `rename`, `delete`, and `--list` have been replaced with shorter names.
 
-In Preferences go to `Profiles`, select your profile and go to `Keyboard`. Enable `Use Option as Meta key` checkbox.
-
-![macOS Terminal app preferences window](https://raw.githubusercontent.com/pkitazos/git-jump/main/img/Terminal-Option-key@2x.png)
-
-### Hyper
-
-Open `.hyper.js` and add next line to the `config` section:
-
-```js
-modifierKeys: { altIsMeta: true }
-```
+I tried to cover all the issues from the original repo, and most fixes have been included in this version, I'm still working out what the nicest way to do remote branch support is. That should land soon enough.

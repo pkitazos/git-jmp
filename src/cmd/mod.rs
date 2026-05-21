@@ -57,19 +57,19 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    List(List),
+    Ls(List),
     New(New),
-    Delete(Delete),
-    Rename(Rename),
+    Rm(Delete),
+    Mv(Rename),
 }
 
 impl Commands {
     fn run(self, state: &Model) -> Result<(), GitJumpError> {
         match self {
-            Commands::List(cmd) => cmd.run(state),
+            Commands::Ls(cmd) => cmd.run(state),
             Commands::New(cmd) => cmd.run(state),
-            Commands::Delete(cmd) => cmd.run(state),
-            Commands::Rename(cmd) => cmd.run(state),
+            Commands::Rm(cmd) => cmd.run(state),
+            Commands::Mv(cmd) => cmd.run(state),
         }
     }
 }

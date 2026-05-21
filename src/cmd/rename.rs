@@ -8,9 +8,8 @@ use crate::{
 #[derive(Debug, Parser)]
 /// Rename branch called <curr_name> to <new_name>
 #[command(
-    visible_alias("mv"),
     arg_required_else_help = true,
-    override_usage = "git-jump rename [CURRENT_NAME] <NEW_NAME>"
+    override_usage = "git-jmp mv [CURRENT_NAME] <NEW_NAME>"
 )]
 pub struct Rename {
     #[arg(num_args = 1..=2)]

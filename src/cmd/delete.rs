@@ -8,7 +8,7 @@ use crate::{
 
 #[derive(Debug, Parser)]
 /// Delete listed branches
-#[command(visible_alias("rm"), arg_required_else_help = true)]
+#[command(arg_required_else_help = true)]
 pub struct Delete {
     #[arg(num_args = 1..)]
     branch_names: Vec<String>,
