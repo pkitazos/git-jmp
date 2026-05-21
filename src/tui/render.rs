@@ -96,7 +96,7 @@ impl InteractiveApp {
         frame.render_widget(
             Line::from(vec![
                 Span::from(format!("{INDEX_PADD}{mode}")),
-                Span::from(format!("{}", &self.alert)),
+                Span::from(self.alert.to_string()),
             ])
             .fg(theme::STATUS_BAR),
             area,
