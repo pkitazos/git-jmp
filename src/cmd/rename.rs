@@ -6,12 +6,16 @@ use crate::{
 };
 
 #[derive(Debug, Parser)]
-/// Rename branch called <curr_name> to <new_name>
+/// Rename a branch
+///
+/// Runs `git branch --move` under the hood and updates your jump data.
+/// Omit CURRENT_NAME to rename the current branch.
 #[command(
     arg_required_else_help = true,
-    override_usage = "git-jmp mv [CURRENT_NAME] <NEW_NAME>"
+    override_usage = "git jmp mv [CURRENT_NAME] <NEW_NAME>"
 )]
 pub struct Rename {
+    /// [CURRENT_NAME] NEW_NAME
     #[arg(num_args = 1..=2)]
     names: Vec<String>,
 }

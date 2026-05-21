@@ -11,5 +11,5 @@ Bug description
 
 - OS:
 - Terminal app:
-- `git jump --version`: 
+- `git jmp --version`: 
 - `git --version`:

@@ -6,9 +6,13 @@ use crate::{
 };
 
 #[derive(Debug, Parser)]
-/// Create a new branch called <branch_name>
+/// Create a new branch and switch to it
+///
+/// Runs `git switch --create` under the hood and records the new branch
+/// as the most recently visited in your jump data.
 #[command(arg_required_else_help = true)]
 pub struct New {
+    /// Name for the new branch
     branch_name: String,
 }
 

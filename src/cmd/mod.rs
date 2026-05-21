@@ -36,18 +36,45 @@ pub trait Run {
     name = NAME,
     version,
     about,
+    long_about = "\
+A fast, interactive branch switcher for Git with fuzzy search, recency sorting, and worktree support.
+
+Run with no arguments to launch the interactive UI. Branches are sorted by recency, the ones
+you switch to most often float to the top. Start typing to fuzzy-filter the list.
+
+Jump directly to a branch without the UI by passing a name or partial match:
+
+  git jmp 481       switches to feat/issue-481-auth-refactor
+  git jmp signup    switches to feat/user-signup-flow
+
+An exact match is tried first, then the best fuzzy match.",
     propagate_version = true,
-    override_usage = "git jmp [BRANCH] | git jmp <COMMAND> | git jmp"
+    override_usage = "git jmp [BRANCH] | git jmp <COMMAND> | git jmp",
+    after_long_help = "\
+Interactive mode keybindings:
+  Up/Down     Navigate the list
+  j/k         Navigate the list (vim mode)
+  Enter       Switch to the selected branch
+  Type        Fuzzy-filter branches by name
+  Alt+0..9    Quick-select a branch by its position
+
+Configuration:
+  Global config: ~/.config/git-jmp/config.toml
+  Local config:  .jump/config.toml (at repo root, overrides global)
+
+  See https://github.com/pkitazos/git-jmp#configuration for all options.
+
+Support:
+  https://github.com/pkitazos/git-jmp"
 )]
 pub struct Cli {
-    /// Switches to the branch which fuzzy-matches the string
+    /// Jump to a branch by exact or fuzzy name match
     ///
-    /// When a single argument is provided, `<branch name>` can be just part of the name
-    /// - `git jmp` will look for the best matching local branch
-    ///   if `git switch` doesn't find an exact match.
+    /// Checks for an exact match first, then falls back to the best fuzzy match.
+    /// You can use just part of the name, e.g. `git jmp 481` to match `feat/issue-481-auth-refactor`.
     pub branch: Option<String>,
 
-    /// Include remote branches (applies to interactive mode only)
+    /// Enable vim-style navigation (j/k, Normal/Input mode split)
     #[arg(long)]
     pub vim_mode: bool,
 
