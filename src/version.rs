@@ -21,8 +21,8 @@ pub fn check_pkg_version() {
 
 fn fetch_latest_version() -> Result<String> {
     let response: serde_json::Value =
-        ureq::get("https://api.github.com/repos/pkitazos/git-jump/releases/latest")
-            .header("User-Agent", "git-jump")
+        ureq::get("https://api.github.com/repos/pkitazos/git-jmp/releases/latest")
+            .header("User-Agent", "git-jmp")
             .call()
             .context("failed to fetch latest release from GitHub")?
             .body_mut()
