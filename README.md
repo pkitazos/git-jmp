@@ -20,7 +20,7 @@ brew install git-jmp
 
 ## Usage
 
-The tool has to main modes, the interactive switcher and the fuzzy match jump. 
+The tool has two main modes modes, the interactive switcher and the fuzzy match jump. 
 
 ### Interactive Mode
 
@@ -33,7 +33,7 @@ git jmp
 * When you first start using `git jmp` branches will just be sorted alphabetically, but as you start switching around using `git jmp` your jump history is tracked and the list will be sorted with the most recently jumped-to branches near the top of the list for faster switching.
 * You can navigate the list with your arrow keys or, if vim mode is enabled, using `j/k`. Just hit enter to switch to the selected branch.
 * You can filter the list using a fuzzy search, just start typing out a part of the name of the branch you want to jump to and you can narrow down the list.
-* You can also quickly jump to any of your top 10 most recently visited branches using <kbd>Option</kbd>+<kbd>\<number\></kbd>. You might need to configure your terminal settings for the quick jump to work, see [section] below for how to set that up in some popular terminal.
+* You can also quickly jump to any of your top 10 most recently visited branches using <kbd>Option</kbd>+<kbd>\<number\></kbd>. You might need to configure your terminal settings for the quick jump to work, see [terminal configuration](docs/terminal-config.md) for how to set that up in some popular terminals.
 
 ### Direct Jump
 
@@ -59,15 +59,17 @@ Runs `git switch --create` under the hood and also makes the new branch the most
 git jmp mv [<old name>] <new name>
 ```
 
-Runs `git branch --move` under the hood and also updates the jump data with the new name.
+Runs `git branch --move` under the hood and also updates the jump data with the new name. You can ommit the `<old name>` and that just means you want to rename the *current* branch.
 
 ### rm
 
 ```shell
-git jmp rm <branch name> [<branch name>, ...]
+git jmp rm [-f] <branch name> [<branch name>, ...]
 ```
 
 Runs `git branch -d` for each of the branches provided and removes that entry from the jump data if the branch was successfully deleted.
+
+Pass `-f` or `--force` to delete branches that haven't been fully merged, which is equivalent to `git branch -D`.
 
 
 ### ls
@@ -77,6 +79,8 @@ git jmp ls
 ```
 
 This one doesn't actually run `git branch`, but it does render the same list. The difference is that if you pipe the output from `ls` into some other command, the formatting is stripped unlike the native `git branch` which keeps the `*` and `+` identifiers. Idk why you would want this, but it's here if you want it?
+
+Pass `-r` or `--include-remotes` to list all remote branches as well. This actually queries your remotes to build an accurate list, it doesn't just check your local cache which may be out of date.
 
 ## Configuration
 
