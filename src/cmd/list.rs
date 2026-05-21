@@ -11,7 +11,6 @@ use crate::{
 
 #[derive(Debug, Parser)]
 /// List all branches
-#[clap(visible_alias("ls"))]
 pub struct List {
     #[arg(short('r'), long)]
     include_remotes: bool,
