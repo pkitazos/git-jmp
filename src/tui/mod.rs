@@ -371,16 +371,16 @@ impl InteractiveApp {
                             }
 
                             // Delete from cursor to end of line
-                            (KeyCode::Char('k'), KeyModifiers::CONTROL) => {
+                            (KeyCode::Char('k'), KeyModifiers::CONTROL)
                                 if self.set_search(
                                     self.view
                                         .search_string()
                                         .chars()
                                         .take(self.character_index)
                                         .collect(),
-                                ) {
-                                    list_state.select_first();
-                                }
+                                ) =>
+                            {
+                                list_state.select_first();
                             }
 
                             // Delete from cursor to beginning of line
@@ -418,10 +418,8 @@ impl InteractiveApp {
                             }
 
                             // Backspace
-                            (KeyCode::Backspace, KeyModifiers::NONE) => {
-                                if self.delete_char() {
-                                    list_state.select_first();
-                                }
+                            (KeyCode::Backspace, KeyModifiers::NONE) if self.delete_char() => {
+                                list_state.select_first();
                             }
 
                             // --- quick select ---
@@ -433,10 +431,10 @@ impl InteractiveApp {
 
                             // --- text input ---
                             (KeyCode::Char(to_insert), KeyModifiers::NONE)
-                            | (KeyCode::Char(to_insert), KeyModifiers::SHIFT) => {
-                                if self.enter_char(to_insert) {
-                                    list_state.select_first();
-                                }
+                            | (KeyCode::Char(to_insert), KeyModifiers::SHIFT)
+                                if self.enter_char(to_insert) =>
+                            {
+                                list_state.select_first();
                             }
 
                             // --- mode / confirm ---
@@ -444,10 +442,8 @@ impl InteractiveApp {
                                 return self.make_selection(&list_state);
                             }
 
-                            (KeyCode::Esc, KeyModifiers::NONE) => {
-                                if self.vim_mode {
-                                    self.input_mode = InputMode::Normal
-                                };
+                            (KeyCode::Esc, KeyModifiers::NONE) if self.vim_mode => {
+                                self.input_mode = InputMode::Normal;
                             }
 
                             _ => {}
