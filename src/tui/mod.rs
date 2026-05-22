@@ -151,8 +151,17 @@ impl InteractiveApp {
         self.view = if new_search.is_empty() {
             SearchView::Idle
         } else {
+            let all_branches: Vec<Branch> = self
+                .branches
+                .iter()
+                .chain(match &self.head {
+                    Head::Branch(b) => std::slice::from_ref(b),
+                    Head::Detached { .. } => &[],
+                })
+                .cloned()
+                .collect();
             SearchView::Filtered {
-                list: generate_ranked_list(&self.branches, &self.worktrees, &new_search),
+                list: generate_ranked_list(&all_branches, &self.worktrees, &new_search),
                 search_string: new_search,
             }
         };
