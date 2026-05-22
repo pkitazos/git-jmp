@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use clap::Parser;
 
 use crate::{
@@ -38,9 +37,7 @@ impl Run for Delete {
                 .iter()
                 .any(|r| matches!(r, BranchDeleteResult::Failed(..)))
             {
-                Err(GitJumpError::Other(anyhow!(
-                    "some branches failed to delete"
-                )))
+                Err(GitJumpError::SilentExit)
             } else {
                 Ok(())
             }

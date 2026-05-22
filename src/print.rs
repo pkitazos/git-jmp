@@ -90,7 +90,11 @@ pub fn render_branch_deletion_res(res: &[BranchDeleteResult]) {
         (true, false) => {
             eprintln!("{}", "Failed to delete branches".red().bold());
             for (name, reason) in &failures {
-                eprintln!("   {}: {}", name, reason.trim().replace('\n', "\n\t"));
+                eprintln!(
+                    "   [{}] {}",
+                    name.grey().bold(),
+                    reason.trim().replace('\n', "\n\t")
+                );
             }
         }
         // partial
@@ -99,7 +103,11 @@ pub fn render_branch_deletion_res(res: &[BranchDeleteResult]) {
             println!();
             eprintln!("{}", "Failed to delete:".red().bold());
             for (name, reason) in &failures {
-                eprintln!("   {}: {}", name, reason.trim().replace('\n', "\n\t"));
+                eprintln!(
+                    "   [{}] {}",
+                    name.grey().bold(),
+                    reason.trim().replace('\n', "\n\t")
+                );
             }
         }
         // empty input
