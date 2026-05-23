@@ -24,7 +24,7 @@ impl Default for General {
     fn default() -> Self {
         Self {
             vim_mode: Default::default(),
-            sources: Default::default(),
+            sources: vec![RefSource::Local],
             auto_check_updates: true,
         }
     }
@@ -48,7 +48,7 @@ pub struct PartialGeneral {
     pub auto_check_updates: Option<bool>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum RefSource {
     Local,
@@ -211,7 +211,8 @@ quick_select_hint = "hidden"
     fn merge_both_empty_gives_defaults() {
         let config = merge(PartialConfig::default(), PartialConfig::default());
         assert_eq!(config.general.vim_mode, false);
-        assert!(config.general.sources.is_empty());
+        assert_eq!(config.general.sources.len(), 1);
+        assert_eq!(config.general.sources[0], RefSource::Local);
         assert_eq!(config.general.auto_check_updates, true);
         assert_eq!(config.appearance.quick_select_hint, QuickSelectHint::Full);
     }

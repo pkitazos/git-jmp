@@ -1,5 +1,11 @@
 const PREFIX_WINDOW: usize = 3;
 
+#[derive(PartialEq, Eq, PartialOrd)]
+pub struct MatchRecord<T> {
+    pub match_score: usize,
+    pub item: T,
+}
+
 pub fn fuzzy_match(search: &str, target: &str) -> usize {
     let matched_indices = find_sequential_indices(&search.to_lowercase(), &target.to_lowercase());
 

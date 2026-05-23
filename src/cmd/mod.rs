@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use clap::{Parser, Subcommand};
 use crossterm::style::Stylize;
 
@@ -6,14 +8,16 @@ use crate::{
     cmd::{
         delete::Delete,
         interactive::jump,
-        jump::{JumpTo, switch_and_record},
+        jump::{JumpTo, switch_and_record, switch_to_remote_and_record},
         list::List,
         new::New,
         rename::Rename,
     },
-    config,
+    config::{self, RefSource},
     error::GitJumpError,
+    git::fetch_remotes,
     model::Model,
+    print::render_successful_switch,
     tui::AppExitStatus,
     version::check_pkg_version,
 };
@@ -78,6 +82,10 @@ pub struct Cli {
     #[arg(long)]
     pub vim_mode: bool,
 
+    /// Include any branches which exist on any remote in the interactive list
+    #[arg(short('r'), long)]
+    pub include_remotes: bool,
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
@@ -90,8 +98,8 @@ pub enum Commands {
     Mv(Rename),
 }
 
-impl Commands {
-    fn run(self, state: &Model) -> Result<(), GitJumpError> {
+impl Run for Commands {
+    fn run(&self, state: &Model) -> Result<(), GitJumpError> {
         match self {
             Commands::Ls(cmd) => cmd.run(state),
             Commands::New(cmd) => cmd.run(state),
@@ -118,17 +126,33 @@ impl Cli {
     }
 
     pub fn run(self) -> Result<(), GitJumpError> {
-        // todo: when I support the `--inlude-remotes` flag, that needs to be passed to `init`
         let state = Model::init()?;
 
         let mut app_config = config::get(&state.main_worktree.jump_dir())?;
         let check_for_update = app_config.general.auto_check_updates;
-        if self.vim_mode {
-            app_config.general.vim_mode = true
-        }
+
+        let vim_mode_flag = self.vim_mode;
+        let include_remotes_flag = self.include_remotes;
 
         let res = match self.into_invocation() {
             Invocation::Interactive => {
+                if vim_mode_flag {
+                    app_config.general.vim_mode = true
+                }
+
+                if include_remotes_flag {
+                    let refs: HashSet<RefSource> = fetch_remotes()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|r| RefSource::Remote(r))
+                        .collect();
+
+                    app_config.general.sources = HashSet::from_iter(app_config.general.sources)
+                        .union(&refs)
+                        .cloned()
+                        .collect();
+                }
+
                 let active = get_active_worktree(&state.worktrees, &state.active_worktree);
 
                 let res = jump(&state, app_config, &active)?;
@@ -139,15 +163,17 @@ impl Cli {
                         Ok(())
                     }
 
-                    AppExitStatus::Selected(b) => {
-                        switch_and_record(&state.main_worktree.data_file(), &b.name).map(|res| {
-                            if b.is_head(&active.head) {
-                                println!("Staying on {}", active.head.label())
-                            } else {
-                                println!("{res}")
-                            }
-                        })
+                    AppExitStatus::SelectedLocal(b) => {
+                        switch_and_record(&state.main_worktree.data_file(), &b.name)
+                            .map(|msg| render_successful_switch(&b, &active.head, &msg))
                     }
+
+                    AppExitStatus::SelectedRemote(b, remote) => switch_to_remote_and_record(
+                        &state.main_worktree.data_file(),
+                        &b.name,
+                        &remote,
+                    )
+                    .map(|msg| render_successful_switch(&b, &active.head, &msg)),
 
                     AppExitStatus::LocatedAt(worktree) => {
                         let dir = worktree.dir.to_string_lossy();

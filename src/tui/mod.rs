@@ -1,11 +1,11 @@
 use anyhow::{Context, Result};
 use crossterm::event::{self, KeyCode, KeyEventKind, KeyModifiers};
 use ratatui::{DefaultTerminal, widgets::ListState};
-use std::{env, fmt::Display, iter};
+use std::{borrow::Cow, collections::BTreeMap, env, fmt::Display, iter};
 
 use crate::{
-    branch::{RankedSearchList, generate_ranked_list},
     config::{Config, QuickSelectHint},
+    fuzzy_match::{MatchRecord, fuzzy_match},
     types::{Branch, Head, Worktree},
 };
 
@@ -39,13 +39,7 @@ pub struct InteractiveApp {
     input_mode: InputMode,
     alert: String,
 
-    /// the currently checked out branch
-    head: Head,
-    /// branches you can jump to (does not include currently checked out branch)
-    branches: Vec<Branch>,
-    /// branches checked out in linked worktrees
-    worktrees: Vec<Worktree>,
-
+    rows: Vec<Row>,
     // view state (technically a copy of the source data)
     view: SearchView,
 }
@@ -55,7 +49,7 @@ pub enum SearchView {
     Idle,
     Filtered {
         search_string: String, // invariant: non-empty
-        list: RankedSearchList,
+        list: Vec<Row>,
     },
 }
 
@@ -73,25 +67,66 @@ pub enum InputMode {
     Editing,
 }
 
-#[derive(Clone)]
-enum Row {
+#[derive(Debug, Clone)]
+pub enum Row {
+    /// the currently checked out branch
     Current(Head),
-    Branch { branch: Branch, index: BranchIndex },
+    /// branches you can jump to (does not include currently checked out branch)
+    LocalBranch(Branch),
+    /// remote branches you are not tracking locally
+    RemoteBranch { remote: String, branch: Branch },
+    /// branches checked out in linked worktrees
     Worktree(Worktree),
 }
 
-#[derive(Clone)]
-enum BranchIndex {
-    QuickSelect(usize),
-    Head,
-    Bare,
+impl Row {
+    fn label<'a>(&'a self) -> Cow<'a, str> {
+        match self {
+            Row::Current(head) => Cow::Borrowed(head.label()),
+            Row::LocalBranch(branch) => Cow::Borrowed(&branch.name),
+            Row::Worktree(worktree) => Cow::Borrowed(worktree.head.label()),
+            Row::RemoteBranch { remote, branch } => Cow::Owned(format!("{remote}/{}", branch.name)),
+        }
+    }
+}
+
+/// invariant: `search_string` is not empty
+pub fn generate_ranked_rows(rows: &[Row], search_string: &str) -> Vec<Row> {
+    assert!(!search_string.is_empty());
+
+    let scored_rows: Vec<_> = rows
+        .into_iter()
+        .map(|r| MatchRecord {
+            match_score: fuzzy_match(&r.label(), search_string),
+            item: r,
+        })
+        .filter(|r| r.match_score > 0)
+        .collect();
+
+    let (mut worktrees, mut rest): (Vec<_>, Vec<_>) = scored_rows
+        .into_iter()
+        .partition(|r| matches!(r.item, Row::Worktree(_)));
+
+    let by_score = |a: &MatchRecord<&Row>, b: &MatchRecord<&Row>| {
+        b.match_score
+            .cmp(&a.match_score)
+            .then_with(|| a.item.label().cmp(&b.item.label()))
+    };
+
+    worktrees.sort_by(by_score);
+    rest.sort_by(by_score);
+
+    rest.append(&mut worktrees);
+
+    rest.into_iter().map(|r| r.item.to_owned()).collect()
 }
 
 #[derive(Debug)]
 pub enum AppExitStatus {
     Cancelled,
     StayedOnDetached,
-    Selected(Branch),
+    SelectedLocal(Branch),
+    SelectedRemote(Branch, String),
     LocatedAt(Worktree),
 }
 
@@ -99,30 +134,55 @@ impl InteractiveApp {
     pub fn new(
         head: Head,
         branches: Vec<Branch>,
+        remote_branches: BTreeMap<String, Vec<Branch>>,
         worktrees: Vec<Worktree>,
         config: Config,
     ) -> Self {
         Self {
-            vim_mode: config.general.vim_mode,
             quick_select_hint: config.appearance.quick_select_hint,
             modifier: if env::consts::OS == "macos" {
                 ModifierKey::Option
             } else {
                 ModifierKey::Alt
             },
-
+            vim_mode: config.general.vim_mode,
             input_mode: if config.general.vim_mode {
                 InputMode::Normal
             } else {
                 InputMode::Editing
             },
+
             character_index: 0,
             alert: String::from(""),
-            head,
-            branches,
-            worktrees,
+
+            rows: Self::make_rows(head, branches, remote_branches, worktrees),
+
             view: SearchView::Idle,
         }
+    }
+
+    pub fn make_rows(
+        head: Head,
+        branches: Vec<Branch>,
+        remote_branches: BTreeMap<String, Vec<Branch>>,
+        worktrees: Vec<Worktree>,
+    ) -> Vec<Row> {
+        iter::once(Row::Current(head))
+            .chain(branches.into_iter().map(|b| Row::LocalBranch(b)))
+            .chain(remote_branches.into_iter().flat_map(|(r, bs)| {
+                let mut rows: Vec<Row> = bs
+                    .into_iter()
+                    .map(move |b| Row::RemoteBranch {
+                        remote: r.clone(),
+                        branch: b,
+                    })
+                    .collect();
+
+                rows.sort_by(|a, b| a.label().cmp(&b.label()));
+                rows
+            }))
+            .chain(worktrees.into_iter().map(|w| Row::Worktree(w)))
+            .collect()
     }
 
     fn move_cursor_left_n(&mut self, n: usize) {
@@ -151,17 +211,8 @@ impl InteractiveApp {
         self.view = if new_search.is_empty() {
             SearchView::Idle
         } else {
-            let all_branches: Vec<Branch> = self
-                .branches
-                .iter()
-                .chain(match &self.head {
-                    Head::Branch(b) => std::slice::from_ref(b),
-                    Head::Detached { .. } => &[],
-                })
-                .cloned()
-                .collect();
             SearchView::Filtered {
-                list: generate_ranked_list(&all_branches, &self.worktrees, &new_search),
+                list: generate_ranked_rows(&self.rows, &new_search),
                 search_string: new_search,
             }
         };
@@ -207,64 +258,50 @@ impl InteractiveApp {
         self.character_index = 0;
     }
 
-    fn rows(&self) -> Vec<Row> {
-        match &self.view {
-            SearchView::Idle => iter::once(Row::Current(self.head.clone()))
-                .chain(self.branches.iter().enumerate().map(|(i, b)| Row::Branch {
-                    branch: b.clone(),
-                    index: if i <= 9 {
-                        BranchIndex::QuickSelect(i)
-                    } else {
-                        BranchIndex::Bare
-                    },
-                }))
-                .chain(self.worktrees.iter().map(|w| Row::Worktree(w.clone())))
-                .collect(),
+    fn indexed_rows(&self) -> Vec<(Row, Option<usize>)> {
+        let rows = match &self.view {
+            SearchView::Idle => self.rows.clone(),
+            SearchView::Filtered { list, .. } => list.clone(),
+        };
 
-            SearchView::Filtered { list, .. } => {
-                let mut i = 0;
-
-                list.available
-                    .iter()
-                    .map(|b| Row::Branch {
-                        branch: b.clone(),
-                        index: if b.is_head(&self.head) {
-                            BranchIndex::Head
-                        } else if i <= 9 {
-                            let idx = i;
-                            i += 1;
-                            BranchIndex::QuickSelect(idx)
-                        } else {
-                            BranchIndex::Bare
-                        },
-                    })
-                    .chain(list.worktrees.iter().map(|w| Row::Worktree(w.clone())))
-                    .collect()
-            }
-        }
+        let mut i: usize = 0;
+        rows.into_iter()
+            .map(|r| match r {
+                Row::LocalBranch(_) | Row::RemoteBranch { .. } if i < 10 => {
+                    let idx = i;
+                    i += 1;
+                    (r, Some(idx))
+                }
+                _ => (r, None),
+            })
+            .collect()
     }
 
     fn quick_select(&self, digit: usize) -> Option<AppExitStatus> {
-        self.rows().into_iter().find_map(|row| match row {
-            Row::Branch {
-                branch,
-                index: BranchIndex::QuickSelect(i),
-            } if i == digit => Some(AppExitStatus::Selected(branch)),
+        self.indexed_rows().into_iter().find_map(|x| match x {
+            (Row::LocalBranch(branch), Some(i)) if i == digit => {
+                Some(AppExitStatus::SelectedLocal(branch))
+            }
+            (Row::RemoteBranch { remote, branch }, Some(i)) if i == digit => {
+                Some(AppExitStatus::SelectedRemote(branch, remote))
+            }
             _ => None,
         })
     }
 
     fn make_selection(&mut self, list_state: &ListState) -> Result<AppExitStatus> {
         let idx = list_state.selected().unwrap_or(0);
-        let row = self
-            .rows()
+
+        let (row, _) = self
+            .indexed_rows()
             .into_iter()
             .nth(idx)
             .context("selected branch no longer available")?;
 
         Ok(match row {
             Row::Current(_) => AppExitStatus::StayedOnDetached,
-            Row::Branch { branch, .. } => AppExitStatus::Selected(branch),
+            Row::LocalBranch(branch) => AppExitStatus::SelectedLocal(branch),
+            Row::RemoteBranch { branch, remote } => AppExitStatus::SelectedRemote(branch, remote),
             Row::Worktree(worktree) => AppExitStatus::LocatedAt(worktree),
         })
     }

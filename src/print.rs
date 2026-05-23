@@ -6,18 +6,27 @@ use crate::{
     branch::worktree_branch_names,
     cmd::delete::BranchDeleteResult,
     error::GitJumpError,
-    types::{Head, Worktree},
+    git::RemoteBranch,
+    types::{Branch, Head, Worktree},
 };
 
 pub const INDEX_PADD: &str = "   ";
 
-pub fn render_branch_list(active: &Head, branches: &[String], worktrees: &[Worktree]) {
+pub fn render_branch_list(
+    active: &Head,
+    branches: &[String],
+    remote_branches: &[RemoteBranch],
+    worktrees: &[Worktree],
+) {
     let mut ws = worktree_branch_names(worktrees);
     ws.remove(&active.label());
 
     if !io::stdout().is_terminal() {
         for name in branches {
-            println!("{}", name);
+            println!("{name}");
+        }
+        for b in remote_branches {
+            println!("{}/{}", b.remote, b.name);
         }
         return;
     }
@@ -30,6 +39,13 @@ pub fn render_branch_list(active: &Head, branches: &[String], worktrees: &[Workt
         } else {
             println!("{INDEX_PADD}{name}");
         }
+    }
+    for b in remote_branches {
+        println!(
+            "{INDEX_PADD}{}{}",
+            format!("{}/", b.remote).as_str().grey(),
+            b.name
+        );
     }
 }
 
@@ -112,5 +128,13 @@ pub fn render_branch_deletion_res(res: &[BranchDeleteResult]) {
         }
         // empty input
         (true, true) => unreachable!("clap should prevent this"),
+    }
+}
+
+pub fn render_successful_switch(branch: &Branch, active_head: &Head, msg: &str) {
+    if branch.is_head(&active_head) {
+        println!("Staying on {}", active_head.label())
+    } else {
+        println!("{msg}")
     }
 }

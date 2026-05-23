@@ -1,15 +1,12 @@
-use std::{collections::HashSet, path::Path};
-
-use crate::{
-    fuzzy_match::fuzzy_match,
-    types::{Branch, Head, Worktree},
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    path::Path,
 };
 
-#[derive(PartialEq, Eq, PartialOrd)]
-struct MatchRecord<T> {
-    match_score: usize,
-    item: T,
-}
+use crate::{
+    fuzzy_match::{MatchRecord, fuzzy_match},
+    types::{Branch, Head, Worktree},
+};
 
 pub fn prep_available_branches(branches: &[Branch], worktrees: &[Worktree]) -> Vec<Branch> {
     let checked_out: HashSet<&str> = worktree_branch_names(worktrees);
@@ -46,6 +43,33 @@ pub fn prep_available_worktrees(
 
     available_worktrees.sort();
     available_worktrees
+}
+
+pub fn prep_available_remote_branches(
+    cached_remote_branches: &HashMap<String, Vec<String>>,
+    sources: &[String],
+    local_branches: &HashSet<String>,
+    active_head: &Head,
+) -> BTreeMap<String, Vec<Branch>> {
+    sources
+        .iter()
+        .filter_map(|r| {
+            let mut branches: Vec<_> = cached_remote_branches
+                .get(r)?
+                .iter()
+                .filter(|&name| !local_branches.contains(name) && name != active_head.label())
+                .map(|name| Branch::new(name))
+                .collect();
+
+            branches.sort();
+
+            if branches.is_empty() {
+                None
+            } else {
+                Some((r.to_string(), branches))
+            }
+        })
+        .collect()
 }
 
 #[derive(Clone)]
