@@ -28,7 +28,7 @@ pub trait Run {
 #[command(
     name = NAME,
     version,
-    about,
+    about = "A fast, interactive branch switcher for Git.",
     long_about = "\
 A fast, interactive branch switcher for Git with fuzzy search, recency sorting, and worktree support.
 
@@ -39,21 +39,40 @@ Jump directly to a branch without the UI by passing a name or partial match:
 
   git jmp 481       switches to feat/issue-481-auth-refactor
   git jmp signup    switches to feat/user-signup-flow
+  git jmp -         switches to the previously checked-out branch
 
 An exact match is tried first, then the best fuzzy match.",
-    propagate_version = true,
-    override_usage = "git jmp [BRANCH] | git jmp <COMMAND> | git jmp",
+    override_usage = "git jmp [BRANCH]\n       git jmp <COMMAND>",
     after_long_help = "\
 Interactive mode keybindings:
-  Up/Down     Navigate the list
-  j/k         Navigate the list (vim mode)
-  Enter       Switch to the selected branch
-  Type        Fuzzy-filter branches by name
-  Alt+0..9    Quick-select a branch by its position
+  General:
+    Enter           Switch to the selected branch
+    Ctrl+C          Cancel and exit
+    Alt+0..9        Quick-select a branch by its position
+                    (⌥+0..9 on macOS)
+
+  Navigation:
+    ↑ / ↓           Move up/down the list
+    j / k           Move up/down (vim mode only)
+
+  Search input (default mode, or Input mode in vim):
+    Type            Fuzzy-filter branches by name
+    Alt+← / Alt+→   Move cursor by one word
+    Home / Ctrl+A   Jump to start of input
+    End  / Ctrl+E   Jump to end of input
+    Alt+Backspace   Delete previous word
+    Ctrl+U          Delete from cursor to start of input
+    Ctrl+K          Delete from cursor to end of input
+    Ctrl+W          Clear the entire input
+
+  Vim mode only:
+    i               Enter Input mode (to type a search)
+    Esc             Return to Normal mode
+    q               Cancel and exit (Normal mode only)
 
 Configuration:
   Global config: ~/.config/git-jmp/config.toml
-  Local config:  .jump/config.toml (at repo root, overrides global)
+  Local config:  .jump/config.toml (at repo root, overrides global field-by-field)
 
   See https://github.com/pkitazos/git-jmp#configuration for all options.
 
@@ -61,18 +80,28 @@ Support:
   https://github.com/pkitazos/git-jmp"
 )]
 pub struct Cli {
-    /// Jump to a branch by exact or fuzzy name match
+    /// Branch to jump to (name, fuzzy match, or `-` for previous)
     ///
     /// Checks for an exact match first, then falls back to the best fuzzy match.
-    /// You can use just part of the name, e.g. `git jmp 481` to match `feat/issue-481-auth-refactor`.
+    /// You can use just part of the name, e.g. `git jmp 481` to match
+    /// `feat/issue-481-auth-refactor`. Pass `-` to jump back to the previously
+    /// checked-out branch.
     pub branch: Option<String>,
 
-    /// Enable vim-style navigation (j/k, Normal/Input mode split)
-    #[arg(long)]
+    /// Vim navigation
+    ///
+    /// Enables vim-style navigation (j/k, Normal/Input mode split). Only applies
+    /// when launching the interactive UI; ignored if a BRANCH or subcommand is
+    /// given.
+    #[arg(long, help_heading = "Interactive mode options")]
     pub vim_mode: bool,
 
-    /// Include any branches which exist on any remote in the interactive list
-    #[arg(short('r'), long)]
+    /// Include remote branches
+    ///
+    /// Includes any branches which exist on any remote in the interactive list.
+    /// Only applies when launching the interactive UI; ignored if a BRANCH or
+    /// subcommand is given.
+    #[arg(short('r'), long, help_heading = "Interactive mode options")]
     pub include_remotes: bool,
 
     #[command(subcommand)]
