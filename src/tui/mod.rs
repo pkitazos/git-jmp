@@ -1,11 +1,20 @@
 use anyhow::{Context, Result};
 use crossterm::event::{self, KeyCode, KeyEventKind, KeyModifiers};
 use ratatui::{DefaultTerminal, widgets::ListState};
-use std::{borrow::Cow, collections::BTreeMap, env, fmt::Display, iter};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashSet},
+    env,
+    fmt::Display,
+    iter,
+};
 
 use crate::{
-    config::{Config, QuickSelectHint},
+    branch::{prep_available_branches, prep_available_remote_branches, prep_available_worktrees},
+    config::{Config, QuickSelectHint, RefSource},
     fuzzy_match::{MatchRecord, fuzzy_match},
+    git::read_cached_remote_branches,
+    model::Model,
     types::{Branch, Head, Worktree},
 };
 
@@ -131,22 +140,42 @@ pub enum AppExitStatus {
 }
 
 impl InteractiveApp {
-    pub fn new(
-        head: Head,
-        branches: Vec<Branch>,
-        remote_branches: BTreeMap<String, Vec<Branch>>,
-        worktrees: Vec<Worktree>,
-        config: Config,
-    ) -> Self {
-        Self {
-            quick_select_hint: config.appearance.quick_select_hint,
+    pub fn new(state: &Model, app_config: &Config, active_head: &Head) -> Result<Self> {
+        let branches = prep_available_branches(&state.branches, &state.worktrees);
+
+        let local_branches: HashSet<String> = branches.iter().map(|b| b.name.clone()).collect();
+
+        let cached_remote_branches =
+            read_cached_remote_branches().context("Could not read local remote cache")?;
+
+        let remotes: Vec<String> = app_config
+            .general
+            .sources
+            .iter()
+            .filter_map(|s| match s {
+                RefSource::Remote(r) => Some(r.clone()),
+                _ => None,
+            })
+            .collect();
+
+        let remote_branches = prep_available_remote_branches(
+            &cached_remote_branches,
+            &remotes,
+            &local_branches,
+            &active_head,
+        );
+
+        let worktrees = prep_available_worktrees(&state.worktrees, &state.active_worktree);
+
+        Ok(Self {
+            quick_select_hint: app_config.appearance.quick_select_hint.to_owned(),
             modifier: if env::consts::OS == "macos" {
                 ModifierKey::Option
             } else {
                 ModifierKey::Alt
             },
-            vim_mode: config.general.vim_mode,
-            input_mode: if config.general.vim_mode {
+            vim_mode: app_config.general.vim_mode,
+            input_mode: if app_config.general.vim_mode {
                 InputMode::Normal
             } else {
                 InputMode::Editing
@@ -155,10 +184,10 @@ impl InteractiveApp {
             character_index: 0,
             alert: String::from(""),
 
-            rows: Self::make_rows(head, branches, remote_branches, worktrees),
+            rows: Self::make_rows(active_head.to_owned(), branches, remote_branches, worktrees),
 
             view: SearchView::Idle,
-        }
+        })
     }
 
     pub fn make_rows(

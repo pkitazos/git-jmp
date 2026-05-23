@@ -8,6 +8,7 @@ use std::{
     io::Write,
 };
 
+use crate::config::{self, Config};
 use crate::git::{RawWorktree, locate_git_repo_dirs, read_raw_git_branches, read_raw_worktrees};
 use crate::storage::{JUMP_FOLDER, MainWorktree, clean_and_save_jump_data, load_jump_data};
 use crate::types::{Branch, Head, Worktree};
@@ -18,6 +19,8 @@ pub struct Model {
 
     pub branches: Vec<Branch>,
     pub worktrees: Vec<Worktree>,
+
+    pub config: Config,
 }
 
 impl Model {
@@ -39,11 +42,14 @@ impl Model {
         let branches = construct_branches(&branch_names, &jump_data);
         let worktrees = construct_worktrees(raw_worktrees, &jump_data);
 
+        let config = config::get(&dirs.main_worktree.jump_dir())?;
+
         Ok(Self {
             main_worktree: dirs.main_worktree,
             active_worktree: dirs.active_worktree,
             branches,
             worktrees,
+            config,
         })
     }
 }

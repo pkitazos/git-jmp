@@ -1,24 +1,12 @@
-use std::collections::HashSet;
-
 use clap::{Parser, Subcommand};
-use crossterm::style::Stylize;
 
 use crate::{
-    branch::get_active_worktree,
     cmd::{
-        delete::Delete,
-        interactive::jump,
-        jump::{JumpTo, switch_and_record, switch_to_remote_and_record},
-        list::List,
-        new::New,
+        delete::Delete, interactive::Interactive, jump::JumpTo, list::List, new::New,
         rename::Rename,
     },
-    config::{self, RefSource},
     error::GitJumpError,
-    git::fetch_remotes,
     model::Model,
-    print::render_successful_switch,
-    tui::AppExitStatus,
     version::check_pkg_version,
 };
 
@@ -28,6 +16,7 @@ pub mod jump;
 pub mod list;
 pub mod new;
 pub mod rename;
+pub mod switch;
 
 pub const NAME: &str = "git-jmp";
 
@@ -110,17 +99,33 @@ impl Run for Commands {
 }
 
 pub enum Invocation {
-    Interactive,
+    Interactive(Interactive),
     JumpTo(JumpTo),
     Sub(Commands),
+}
+
+impl Run for Invocation {
+    fn run(&self, state: &Model) -> Result<(), GitJumpError> {
+        match self {
+            Invocation::Interactive(cmd) => cmd.run(&state),
+            Invocation::JumpTo(cmd) => cmd.run(&state),
+            Invocation::Sub(cmd) => cmd.run(&state),
+        }
+    }
 }
 
 impl Cli {
     pub fn into_invocation(self) -> Invocation {
         match (self.command, self.branch) {
             (Some(c), None) => Invocation::Sub(c),
+
             (None, Some(branch)) => Invocation::JumpTo(JumpTo { branch }),
-            (None, None) => Invocation::Interactive,
+
+            (None, None) => Invocation::Interactive(Interactive {
+                vim_mode: self.vim_mode,
+                include_remotes: self.include_remotes,
+            }),
+
             (Some(_), Some(_)) => unreachable!("clap grammar prevents this"),
         }
     }
@@ -128,73 +133,9 @@ impl Cli {
     pub fn run(self) -> Result<(), GitJumpError> {
         let state = Model::init()?;
 
-        let mut app_config = config::get(&state.main_worktree.jump_dir())?;
-        let check_for_update = app_config.general.auto_check_updates;
+        let check_for_update = state.config.general.auto_check_updates;
 
-        let vim_mode_flag = self.vim_mode;
-        let include_remotes_flag = self.include_remotes;
-
-        let res = match self.into_invocation() {
-            Invocation::Interactive => {
-                if vim_mode_flag {
-                    app_config.general.vim_mode = true
-                }
-
-                if include_remotes_flag {
-                    let refs: HashSet<RefSource> = fetch_remotes()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|r| RefSource::Remote(r))
-                        .collect();
-
-                    app_config.general.sources = HashSet::from_iter(app_config.general.sources)
-                        .union(&refs)
-                        .cloned()
-                        .collect();
-                }
-
-                let active = get_active_worktree(&state.worktrees, &state.active_worktree);
-
-                let res = jump(&state, app_config, &active)?;
-
-                match res {
-                    AppExitStatus::StayedOnDetached => {
-                        println!("Staying on {}", active.head.label());
-                        Ok(())
-                    }
-
-                    AppExitStatus::SelectedLocal(b) => {
-                        switch_and_record(&state.main_worktree.data_file(), &b.name)
-                            .map(|msg| render_successful_switch(&b, &active.head, &msg))
-                    }
-
-                    AppExitStatus::SelectedRemote(b, remote) => switch_to_remote_and_record(
-                        &state.main_worktree.data_file(),
-                        &b.name,
-                        &remote,
-                    )
-                    .map(|msg| render_successful_switch(&b, &active.head, &msg)),
-
-                    AppExitStatus::LocatedAt(worktree) => {
-                        let dir = worktree.dir.to_string_lossy();
-                        println!(
-                            "{} is checked out at {}\nTo switch: {}",
-                            worktree.head.label().cyan(),
-                            dir.dark_grey(),
-                            format!("cd {dir}").bold(),
-                        );
-                        Ok(())
-                    }
-
-                    AppExitStatus::Cancelled => Ok(()),
-                }
-            }
-
-            Invocation::JumpTo(cmd) => cmd.run(&state),
-            Invocation::Sub(cmd) => cmd.run(&state),
-        };
-
-        res.inspect(|_| {
+        self.into_invocation().run(&state).inspect(|_| {
             if check_for_update {
                 check_pkg_version();
             }
