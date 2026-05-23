@@ -1,55 +1,90 @@
+use anyhow::Result;
+use crossterm::style::Stylize;
 use std::collections::HashSet;
 
-use anyhow::{Context, Result};
-
 use crate::{
-    branch::{prep_available_branches, prep_available_remote_branches, prep_available_worktrees},
+    branch::get_active_worktree,
+    cmd::{
+        Run,
+        switch::{switch_and_record, switch_to_remote_and_record},
+    },
     config::{Config, RefSource},
-    git::read_cached_remote_branches,
+    error::GitJumpError,
+    git::fetch_remotes,
     model::Model,
+    print::render_successful_switch,
     tui::{AppExitStatus, InteractiveApp, terminal::Terminal},
-    types::Worktree,
+    types::Head,
 };
 
-pub fn jump(state: &Model, app_config: Config, active: &Worktree) -> Result<AppExitStatus> {
-    let res = {
-        let mut t = Terminal::new()?;
+pub struct Interactive {
+    pub vim_mode: bool,
+    pub include_remotes: bool,
+}
 
-        let branches = prep_available_branches(&state.branches, &state.worktrees);
+impl Run for Interactive {
+    fn run(&self, state: &Model) -> Result<(), GitJumpError> {
+        let mut app_config = state.config.clone();
 
-        let local_branches: HashSet<String> = branches.iter().map(|b| b.name.clone()).collect();
+        if self.vim_mode {
+            app_config.general.vim_mode = true
+        }
 
-        let cached_remote_branches =
-            read_cached_remote_branches().context("Could not read local remote cache")?;
+        if self.include_remotes {
+            let refs: HashSet<RefSource> = fetch_remotes()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|r| RefSource::Remote(r))
+                .collect();
 
-        let remotes: Vec<String> = app_config
-            .general
-            .sources
-            .iter()
-            .filter_map(|s| match s {
-                RefSource::Remote(r) => Some(r.clone()),
-                _ => None,
-            })
-            .collect();
+            app_config.general.sources = HashSet::from_iter(app_config.general.sources)
+                .union(&refs)
+                .cloned()
+                .collect();
+        }
 
-        let remote_branches = prep_available_remote_branches(
-            &cached_remote_branches,
-            &remotes,
-            &local_branches,
-            &active.head,
-        );
+        let active = get_active_worktree(&state.worktrees, &state.active_worktree);
 
-        let worktrees = prep_available_worktrees(&state.worktrees, &state.active_worktree);
+        launch_tui(&state, app_config, &active.head)?.apply(&state, &active.head)
+    }
+}
 
-        let app = InteractiveApp::new(
-            active.head.to_owned(),
-            branches,
-            remote_branches,
-            worktrees,
-            app_config,
-        );
-        app.run(&mut t.terminal)?
-    };
+fn launch_tui(state: &Model, app_config: Config, active_head: &Head) -> Result<AppExitStatus> {
+    let mut t = Terminal::new()?;
+    let app = InteractiveApp::new(state, &app_config, active_head)?;
+    app.run(&mut t.terminal)
+}
 
-    Ok(res)
+impl AppExitStatus {
+    pub fn apply(&self, state: &Model, active_head: &Head) -> Result<(), GitJumpError> {
+        match self {
+            AppExitStatus::StayedOnDetached => {
+                println!("Staying on {}", active_head.label());
+                Ok(())
+            }
+
+            AppExitStatus::SelectedLocal(b) => {
+                switch_and_record(&state.main_worktree.data_file(), &b.name)
+                    .map(|msg| render_successful_switch(&b, &active_head, &msg))
+            }
+
+            AppExitStatus::SelectedRemote(b, remote) => {
+                switch_to_remote_and_record(&state.main_worktree.data_file(), &b.name, &remote)
+                    .map(|msg| render_successful_switch(&b, &active_head, &msg))
+            }
+
+            AppExitStatus::LocatedAt(worktree) => {
+                let dir = worktree.dir.to_string_lossy();
+                println!(
+                    "{} is checked out at {}\nTo switch: {}",
+                    worktree.head.label().cyan(),
+                    dir.dark_grey(),
+                    format!("cd {dir}").bold(),
+                );
+                Ok(())
+            }
+
+            AppExitStatus::Cancelled => Ok(()),
+        }
+    }
 }
