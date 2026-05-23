@@ -14,6 +14,13 @@ impl Branch {
     pub fn is_head(&self, head: &Head) -> bool {
         self.name == head.label()
     }
+
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            last_switch: 0,
+        }
+    }
 }
 
 impl PartialOrd for Branch {

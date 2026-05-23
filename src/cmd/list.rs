@@ -4,7 +4,7 @@ use crate::{
     branch::get_active_worktree,
     cmd::Run,
     error::GitJumpError,
-    git::{fetch_remote_branches, fetch_remotes},
+    git::{RemoteBranch, fetch_remote_branches, fetch_remotes},
     model::Model,
     print::render_branch_list,
 };
@@ -23,20 +23,25 @@ pub struct List {
 impl Run for List {
     fn run(&self, state: &Model) -> Result<(), GitJumpError> {
         let active = get_active_worktree(&state.worktrees, &state.active_worktree);
-        list_sub_command(state, self.include_remotes).map(|branches| {
-            render_branch_list(&active.head, &branches, &state.worktrees);
+        list_sub_command(state, self.include_remotes).map(|(branches, remote_branches)| {
+            render_branch_list(&active.head, &branches, &remote_branches, &state.worktrees);
         })
     }
 }
 
-fn list_sub_command(state: &Model, include_remotes: bool) -> Result<Vec<String>, GitJumpError> {
-    let mut branches: Vec<String> = state.branches.iter().map(|b| b.name.to_owned()).collect();
+fn list_sub_command(
+    state: &Model,
+    include_remotes: bool,
+) -> Result<(Vec<String>, Vec<RemoteBranch>), GitJumpError> {
+    let branches: Vec<String> = state.branches.iter().map(|b| b.name.to_owned()).collect();
+
+    let mut all_remote_branches: Vec<RemoteBranch> = vec![];
     if include_remotes {
         for remote in fetch_remotes()? {
             let mut remote_branches = fetch_remote_branches(&remote)?;
-            branches.append(&mut remote_branches);
+            all_remote_branches.append(&mut remote_branches);
         }
     }
 
-    Ok(branches)
+    Ok((branches, all_remote_branches))
 }

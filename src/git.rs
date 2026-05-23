@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, anyhow};
-use std::{path::PathBuf, process::Command};
+use std::{collections::HashMap, path::PathBuf, process::Command};
 
 use crate::storage::MainWorktree;
 
@@ -59,16 +59,45 @@ pub fn fetch_remotes() -> Result<Vec<String>> {
     Ok(remotes.lines().map(|r| r.trim().to_string()).collect())
 }
 
-pub fn fetch_remote_branches(remote: &str) -> Result<Vec<String>> {
+pub struct RemoteBranch {
+    pub remote: String,
+    pub name: String,
+}
+
+pub fn fetch_remote_branches(remote: &str) -> Result<Vec<RemoteBranch>> {
     let branches = git_command("ls-remote", &["--heads", remote])?;
 
-    let branches: Vec<String> = branches
+    let branches: Vec<RemoteBranch> = branches
         .lines()
         .filter_map(|line| line.split('\t').nth(1))
-        .map(|r| format!("{remote}/{}", r.trim_start_matches("refs/heads/")))
+        .map(|r| RemoteBranch {
+            remote: remote.to_string(),
+            name: r.trim_start_matches("refs/heads/").to_string(),
+        })
         .collect();
 
     Ok(branches)
+}
+
+pub fn read_cached_remote_branches() -> Result<HashMap<String, Vec<String>>> {
+    let branches = git_command(
+        "for-each-ref",
+        &["--format=%(refname:strip=2)", "refs/remotes/"],
+    )?;
+
+    let mut remote_branches: HashMap<String, Vec<String>> = HashMap::new();
+    for (r, b) in branches
+        .lines()
+        .filter(|line| !line.ends_with("/HEAD"))
+        .filter_map(|line| line.split_once("/"))
+    {
+        remote_branches
+            .entry(r.to_string())
+            .or_default()
+            .push(b.to_string());
+    }
+
+    Ok(remote_branches)
 }
 
 fn parse_worktree_entry(lines: &[&str]) -> Result<RawWorktree> {
