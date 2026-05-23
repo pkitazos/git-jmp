@@ -12,4 +12,5 @@
 - [x] rename repo
 - [ ] update help messages
 - [x] unlink from fork network
+- [ ] update Changelog
 - [ ] open issue upstream

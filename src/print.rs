@@ -132,7 +132,7 @@ pub fn render_branch_deletion_res(res: &[BranchDeleteResult]) {
 }
 
 pub fn render_successful_switch(branch: &Branch, active_head: &Head, msg: &str) {
-    if branch.is_head(&active_head) {
+    if branch.is_head(active_head) {
         println!("Staying on {}", active_head.label())
     } else {
         println!("{msg}")

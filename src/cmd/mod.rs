@@ -107,9 +107,9 @@ pub enum Invocation {
 impl Run for Invocation {
     fn run(&self, state: &Model) -> Result<(), GitJumpError> {
         match self {
-            Invocation::Interactive(cmd) => cmd.run(&state),
-            Invocation::JumpTo(cmd) => cmd.run(&state),
-            Invocation::Sub(cmd) => cmd.run(&state),
+            Invocation::Interactive(cmd) => cmd.run(state),
+            Invocation::JumpTo(cmd) => cmd.run(state),
+            Invocation::Sub(cmd) => cmd.run(state),
         }
     }
 }
