@@ -10,10 +10,13 @@ use crate::{
 ///
 /// Runs `git branch -d` under the hood and removes deleted branches from your jump data.
 /// Use -f for branches that haven't been fully merged (equivalent to `git branch -D`).
-#[command(arg_required_else_help = true)]
+#[command(
+    arg_required_else_help = true,
+    override_usage = "git jmp rm [OPTIONS] <BRANCH_NAMES>..."
+)]
 pub struct Delete {
     /// Branches to delete
-    #[arg(num_args = 1..)]
+    #[arg(num_args = 1.., required = true)]
     branch_names: Vec<String>,
     /// Force-delete branches not yet fully merged
     #[arg(short, long)]

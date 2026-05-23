@@ -14,6 +14,7 @@ use crate::{
 ///
 /// Shows local branches with the same markers as `git branch` (* for current, + for worktree branches).
 /// When piped, outputs plain branch names with no prefixes, one per line, ready for scripting.
+#[command(override_usage = "git jmp ls [OPTIONS]")]
 pub struct List {
     /// Also list remote branches (queries remotes directly, not the local cache)
     #[arg(short('r'), long)]

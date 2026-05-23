@@ -109,7 +109,15 @@ quick_select_hint = "full" # or "compact" or "hidden"
 - **`vim_mode`** - splits the interactive list into `Normal` mode (navigate) and `Input` mode (type to search) and allows you to move up and down the list using `j`/`k`.
 - **`quick_select_hint`** - controls the hint shown on the search input line: `"full"` is the verbose default, `"compact"` shows just the modifier key and number, `"hidden"` shows nothing.
 
-Global config lives at `~/.config/git-jmp/config.toml` (or the equivalent on your OS). Local config goes in `.jump/config.toml` at the root of your repository. Local values override global ones field by field, so you don't need to specify every field every time.
+Global config location depends on your OS:
+
+| OS      | Path                                                                      |
+| ------- | ------------------------------------------------------------------------- |
+| Linux   | `~/.config/git-jmp/config.toml` (or `$XDG_CONFIG_HOME/git-jmp/config.toml`) |
+| macOS   | `~/Library/Application Support/git-jmp/config.toml`                       |
+| Windows | `%APPDATA%\git-jmp\config.toml`                                           |
+
+Local config goes in `.jump/config.toml` at the root of your repository. Local values override global ones field by field, so you don't need to specify every field every time.
 
 ## Migrating from `git-jump`
 
