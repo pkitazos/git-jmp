@@ -34,7 +34,7 @@ impl Run for Interactive {
             let refs: HashSet<RefSource> = fetch_remotes()
                 .unwrap_or_default()
                 .into_iter()
-                .map(|r| RefSource::Remote(r))
+                .map(RefSource::Remote)
                 .collect();
 
             app_config.general.sources = HashSet::from_iter(app_config.general.sources)
@@ -45,7 +45,7 @@ impl Run for Interactive {
 
         let active = get_active_worktree(&state.worktrees, &state.active_worktree);
 
-        launch_tui(&state, app_config, &active.head)?.apply(&state, &active.head)
+        launch_tui(state, app_config, &active.head)?.apply(state, &active.head)
     }
 }
 
@@ -65,12 +65,12 @@ impl AppExitStatus {
 
             AppExitStatus::SelectedLocal(b) => {
                 switch_and_record(&state.main_worktree.data_file(), &b.name)
-                    .map(|msg| render_successful_switch(&b, &active_head, &msg))
+                    .map(|msg| render_successful_switch(b, active_head, &msg))
             }
 
             AppExitStatus::SelectedRemote(b, remote) => {
-                switch_to_remote_and_record(&state.main_worktree.data_file(), &b.name, &remote)
-                    .map(|msg| render_successful_switch(&b, &active_head, &msg))
+                switch_to_remote_and_record(&state.main_worktree.data_file(), &b.name, remote)
+                    .map(|msg| render_successful_switch(b, active_head, &msg))
             }
 
             AppExitStatus::LocatedAt(worktree) => {

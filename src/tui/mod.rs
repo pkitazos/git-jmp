@@ -104,7 +104,7 @@ pub fn generate_ranked_rows(rows: &[Row], search_string: &str) -> Vec<Row> {
     assert!(!search_string.is_empty());
 
     let scored_rows: Vec<_> = rows
-        .into_iter()
+        .iter()
         .map(|r| MatchRecord {
             match_score: fuzzy_match(&r.label(), search_string),
             item: r,
@@ -162,7 +162,7 @@ impl InteractiveApp {
             &cached_remote_branches,
             &remotes,
             &local_branches,
-            &active_head,
+            active_head,
         );
 
         let worktrees = prep_available_worktrees(&state.worktrees, &state.active_worktree);
@@ -197,7 +197,7 @@ impl InteractiveApp {
         worktrees: Vec<Worktree>,
     ) -> Vec<Row> {
         iter::once(Row::Current(head))
-            .chain(branches.into_iter().map(|b| Row::LocalBranch(b)))
+            .chain(branches.into_iter().map(Row::LocalBranch))
             .chain(remote_branches.into_iter().flat_map(|(r, bs)| {
                 let mut rows: Vec<Row> = bs
                     .into_iter()
@@ -210,7 +210,7 @@ impl InteractiveApp {
                 rows.sort_by(|a, b| a.label().cmp(&b.label()));
                 rows
             }))
-            .chain(worktrees.into_iter().map(|w| Row::Worktree(w)))
+            .chain(worktrees.into_iter().map(Row::Worktree))
             .collect()
     }
 

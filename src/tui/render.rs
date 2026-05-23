@@ -129,7 +129,7 @@ impl InteractiveApp {
             remote_branch,
             worktree_branch,
             worktree_dir: longest_dir,
-        } = span_widths(&rows);
+        } = span_widths(rows);
 
         let longest_entry = head
             .max(local_branch)
