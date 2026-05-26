@@ -111,7 +111,7 @@ fn parse_worktree_entry(lines: &[&str]) -> Result<RawWorktree> {
         match line.split_once(' ') {
             Some((key, val)) => match key {
                 "worktree" => dir = Some(PathBuf::from(val)),
-                "HEAD" => sha = Some(val),
+                "HEAD" => sha = val.get(..7).or(Some(val)),
                 "branch" => {
                     branch = match val.strip_prefix("refs/heads/") {
                         Some(name) => Some(name),

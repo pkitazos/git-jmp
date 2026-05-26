@@ -1,4 +1,4 @@
-![git-jump CLI logo](https://raw.githubusercontent.com/pkitazos/git-jump/main/img/banner.png)
+![git-jump CLI logo](https://raw.githubusercontent.com/pkitazos/git-jump/main/docs/img/banner.png)
 
 # Git-Jmp
 

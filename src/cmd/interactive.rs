@@ -1,6 +1,6 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use crossterm::style::Stylize;
-use std::collections::HashSet;
+use std::{collections::HashSet, env, fs, process};
 
 use crate::{
     branch::get_active_worktree,
@@ -75,13 +75,24 @@ impl AppExitStatus {
 
             AppExitStatus::LocatedAt(worktree) => {
                 let dir = worktree.dir.to_string_lossy();
-                println!(
-                    "{} is checked out at {}\nTo switch: {}",
-                    worktree.head.label().cyan(),
-                    dir.dark_grey(),
-                    format!("cd {dir}").bold(),
-                );
-                Ok(())
+
+                match env::var("GIT_JMP_SHELL_INTEGRATION") {
+                    Ok(path) if !path.is_empty() => {
+                        fs::write(&path, dir.as_ref())
+                            .context("Could not change into worktree directory")?;
+                        eprintln!("Switched to worktree at {}", dir.bold());
+                        process::exit(3);
+                    }
+                    _ => {
+                        println!(
+                            "{} is checked out at {}\nTo switch: {}",
+                            worktree.head.label().cyan(),
+                            dir.dark_grey(),
+                            format!("cd {dir}").bold(),
+                        );
+                        Ok(())
+                    }
+                }
             }
 
             AppExitStatus::Cancelled => Ok(()),
