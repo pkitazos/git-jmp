@@ -1,8 +1,13 @@
 use clap::Parser;
+use clap_complete::ArgValueCompleter;
 
 use crate::{
-    cmd::Run, error::GitJumpError, git::git_command, model::Model,
-    print::render_branch_deletion_res, storage::delete_jump_data_branch,
+    cmd::{Run, completions::branch_completer},
+    error::GitJumpError,
+    git::git_command,
+    model::Model,
+    print::render_branch_deletion_res,
+    storage::delete_jump_data_branch,
 };
 
 #[derive(Debug, Parser)]
@@ -16,7 +21,7 @@ use crate::{
 )]
 pub struct Delete {
     /// Branches to delete
-    #[arg(num_args = 1.., required = true)]
+    #[arg(num_args = 1.., required = true, add = ArgValueCompleter::new(branch_completer))]
     branch_names: Vec<String>,
     /// Force-delete branches not yet fully merged
     #[arg(short, long)]

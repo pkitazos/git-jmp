@@ -19,6 +19,10 @@ impl Shell {
 }
 
 #[derive(Debug, Parser)]
+/// Print a shell integration snippet
+///
+/// Outputs a shell function that wraps git-jmp with worktree directory switching support.
+/// Source the output in your shell config to enable the `jmp` shorthand.
 #[command(arg_required_else_help = true)]
 pub struct Init {
     pub shell: Shell,

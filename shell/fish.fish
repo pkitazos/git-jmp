@@ -8,3 +8,5 @@ function jmp
     end
     rm -f $tmpfile
 end
+
+COMPLETE=fish git-jmp | source

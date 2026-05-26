@@ -1,8 +1,15 @@
 use clap::Parser;
+use clap_complete::ArgValueCompleter;
 
 use crate::{
-    branch::get_active_worktree, cmd::Run, error::GitJumpError, git::git_command, model::Model,
-    print::render_successful_rename, storage::rename_jump_data_branch, types::Head,
+    branch::get_active_worktree,
+    cmd::{Run, completions::branch_completer},
+    error::GitJumpError,
+    git::git_command,
+    model::Model,
+    print::render_successful_rename,
+    storage::rename_jump_data_branch,
+    types::Head,
 };
 
 #[derive(Debug, Parser)]
@@ -25,7 +32,7 @@ Options:
 {options}{after-help}"
 )]
 pub struct Rename {
-    #[arg(num_args = 1..=2, value_name = "NAMES", hide = true)]
+    #[arg(num_args = 1..=2, value_name = "NAMES", hide = true, add = ArgValueCompleter::new(branch_completer))]
     names: Vec<String>,
 }
 
