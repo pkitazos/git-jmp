@@ -131,6 +131,10 @@ pub fn render_branch_deletion_res(res: &[BranchDeleteResult]) {
     }
 }
 
+pub fn render_successful_rename(old: &str, new: &str) {
+    println!("Renamed {old} -> {}", new.bold());
+}
+
 pub fn render_successful_switch(branch: &Branch, active_head: &Head, msg: &str) {
     if branch.is_head(active_head) {
         println!("Staying on {}", active_head.label())

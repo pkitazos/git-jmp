@@ -1,7 +1,10 @@
 use std::path::Path;
 
 use crate::{
-    error::GitJumpError, git::git_command, storage::update_branch_last_switch, types::now,
+    error::GitJumpError,
+    git::{GitOutput, git_command},
+    storage::update_branch_last_switch,
+    types::now,
 };
 
 /// Switches to `target` via `git switch` and records the jump timestamp.
@@ -27,14 +30,14 @@ pub fn switch_to_remote_and_record(
 
 fn record_switch(
     data_file: &Path,
-    switch_result: anyhow::Result<String>,
+    switch_result: anyhow::Result<GitOutput>,
 ) -> Result<String, GitJumpError> {
     match switch_result {
-        Ok(msg) => {
-            if let Ok(branch_name) = git_command("rev-parse", &["--abbrev-ref", "HEAD"]) {
-                update_branch_last_switch(data_file, &branch_name, now())?;
+        Ok(switch_out) => {
+            if let Ok(rev_out) = git_command("rev-parse", &["--abbrev-ref", "HEAD"]) {
+                update_branch_last_switch(data_file, &rev_out.stdout, now())?;
             }
-            Ok(msg)
+            Ok(switch_out.stderr)
         }
         Err(err) => Err(GitJumpError::SwitchFailed(err)),
     }
