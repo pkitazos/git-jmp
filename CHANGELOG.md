@@ -26,8 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `git jmp ls` now shows `*` / `+` markers and colours when printing to a terminal (plain text when piped, same as before).
 - Highlight colour in interactive mode changed from blue to magenta.
 - Update check now queries GitHub Releases instead of the npm registry, and runs after any successful command rather than only in interactive mode.
+- HEAD is now displayed as a 7-character short SHA instead of the full hash.
+- Reorganised project layout: shell integration scripts moved to `shell/`, images moved to `docs/img/`.
 
 ### Added
+- Shell integration via `git jmp init <shell>`. Prints a `jmp` wrapper function for your shell (bash, zsh, or fish). With the wrapper sourced, selecting a branch checked out in another worktree automatically `cd`s into that worktree instead of just printing the path.
 - Configuration system with global (`~/.config/git-jmp/config.toml`) and per-repo (`.jump/config.toml`) config files. Local config overrides global field-by-field.
 - Vim mode (`--vim-mode` flag or `vim_mode` config option). Adds Normal/Input mode split with `j`/`k` navigation and `q` to quit.
 - Remote branch support in interactive mode via `-r`/`--include-remotes` flag or the `sources` config option. Remotes can also be listed with `git jmp ls -r`.

@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 
 use crate::{
     cmd::{
-        delete::Delete, interactive::Interactive, jump::JumpTo, list::List, new::New,
+        delete::Delete, init::Init, interactive::Interactive, jump::JumpTo, list::List, new::New,
         rename::Rename,
     },
     error::GitJumpError,
@@ -11,6 +11,7 @@ use crate::{
 };
 
 pub mod delete;
+pub mod init;
 pub mod interactive;
 pub mod jump;
 pub mod list;
@@ -114,6 +115,7 @@ pub enum Commands {
     New(New),
     Rm(Delete),
     Mv(Rename),
+    Init(Init),
 }
 
 impl Run for Commands {
@@ -123,6 +125,7 @@ impl Run for Commands {
             Commands::New(cmd) => cmd.run(state),
             Commands::Rm(cmd) => cmd.run(state),
             Commands::Mv(cmd) => cmd.run(state),
+            Commands::Init(_) => unreachable!("Init is handled before Model::init()"),
         }
     }
 }
@@ -160,14 +163,20 @@ impl Cli {
     }
 
     pub fn run(self) -> Result<(), GitJumpError> {
-        let state = Model::init()?;
-
-        let check_for_update = state.config.general.auto_check_updates;
-
-        self.into_invocation().run(&state).inspect(|_| {
-            if check_for_update {
-                check_pkg_version();
+        match self.into_invocation() {
+            Invocation::Sub(Commands::Init(Init { shell })) => {
+                println!("{}", shell.integration());
+                Ok(())
             }
-        })
+            invocation => {
+                let state = Model::init()?;
+
+                invocation.run(&state).inspect(|_| {
+                    if state.config.general.auto_check_updates {
+                        check_pkg_version();
+                    }
+                })
+            }
+        }
     }
 }

@@ -5,12 +5,19 @@
 - [x] write tests
 - [x] remove debug clause from interactive app
 - [x] decide where to do the semver check
-- [ ] update license
-- [x] update readme
+- [x] update license
+- [ ] record gifs
+- [ ] update readme
 - [ ] release on brew
 - [x] update name
 - [x] rename repo
-- [ ] update help messages
+- [x] update help messages
 - [x] unlink from fork network
-- [ ] update Changelog
+- [x] update Changelog
 - [ ] open issue upstream
+
+## Readme
+
+- [ ] add shell integration section (how to set up `jmp` wrapper via `git jmp init <shell>`)
+- [ ] document the `init` subcommand under Subcommands
+- [ ] explain worktree auto-cd behaviour when using the shell wrapper
