@@ -12,7 +12,7 @@ use std::{
 use crate::{
     branch::{prep_available_branches, prep_available_remote_branches, prep_available_worktrees},
     config::{Config, QuickSelectHint, RefSource},
-    fuzzy_match::{MatchRecord, fuzzy_match},
+    fuzzy_match::{MatchRecord, SearchTerm, fuzzy_match},
     git::read_cached_remote_branches,
     model::Model,
     types::{Branch, Head, Worktree},
@@ -103,10 +103,12 @@ impl Row {
 pub fn generate_ranked_rows(rows: &[Row], search_string: &str) -> Vec<Row> {
     assert!(!search_string.is_empty());
 
+    let search = SearchTerm::new(search_string);
+
     let scored_rows: Vec<_> = rows
         .iter()
         .map(|r| MatchRecord {
-            match_score: fuzzy_match(&r.label(), search_string),
+            match_score: fuzzy_match(&search, &r.label()),
             item: r,
         })
         .filter(|r| r.match_score > 0)

@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    fuzzy_match::{MatchRecord, fuzzy_match},
+    fuzzy_match::{MatchRecord, SearchTerm, fuzzy_match},
     types::{Branch, Head, Worktree},
 };
 
@@ -85,10 +85,12 @@ pub fn generate_ranked_list(
     worktrees: &[Worktree],
     search_string: &str,
 ) -> RankedSearchList {
+    let search = SearchTerm::new(search_string);
+
     let mut available: Vec<MatchRecord<Branch>> = branches
         .iter()
         .map(|b| MatchRecord {
-            match_score: fuzzy_match(search_string, &b.name),
+            match_score: fuzzy_match(&search, &b.name),
             item: b.to_owned(),
         })
         .collect();
@@ -108,7 +110,7 @@ pub fn generate_ranked_list(
     let mut worktrees: Vec<MatchRecord<Worktree>> = worktrees
         .iter()
         .map(|w| MatchRecord {
-            match_score: fuzzy_match(search_string, w.head.label()),
+            match_score: fuzzy_match(&search, w.head.label()),
             item: w.clone(),
         })
         .collect();

@@ -1,13 +1,21 @@
 const PREFIX_WINDOW: usize = 3;
 
+pub struct SearchTerm(String);
+
+impl SearchTerm {
+    pub fn new(s: &str) -> Self {
+        Self(s.to_lowercase())
+    }
+}
+
 #[derive(PartialEq, Eq, PartialOrd)]
 pub struct MatchRecord<T> {
     pub match_score: usize,
     pub item: T,
 }
 
-pub fn fuzzy_match(search: &str, target: &str) -> usize {
-    let matched_indices = find_sequential_indices(&search.to_lowercase(), &target.to_lowercase());
+pub fn fuzzy_match(needle: &SearchTerm, haystack: &str) -> usize {
+    let matched_indices = find_sequential_indices(&needle.0, &haystack.to_lowercase());
 
     let Some(matched_indices) = matched_indices else {
         return 0;
@@ -83,7 +91,7 @@ mod tests {
 
     #[test]
     fn no_match_returns_zero() {
-        assert_eq!(fuzzy_match("xyz", "main"), 0);
+        assert_eq!(fuzzy_match(&SearchTerm::new("xyz"), "main"), 0);
     }
 
     // fuzzy_match - prefix bonus
@@ -91,13 +99,13 @@ mod tests {
     #[test]
     fn exact_prefix_scores_highest() {
         // "main" in "main": indices [0,1,2,3], prefix 3+2+1+0=6, continuity 3
-        assert_eq!(fuzzy_match("main", "main"), 10);
+        assert_eq!(fuzzy_match(&SearchTerm::new("main"), "main"), 10);
     }
 
     #[test]
     fn later_match_has_lower_prefix_bonus() {
         // "main" in "xx-main": indices [3,4,5,6], prefix 0+0+0+0=0, continuity 3
-        assert_eq!(fuzzy_match("main", "xx-main"), 4);
+        assert_eq!(fuzzy_match(&SearchTerm::new("main"), "xx-main"), 4);
     }
 
     // fuzzy_match - continuity bonus
@@ -105,31 +113,40 @@ mod tests {
     #[test]
     fn consecutive_indices_get_continuity_bonus() {
         // "ab" in "abc": indices [0,1], prefix 3+2=5, continuity 1
-        assert_eq!(fuzzy_match("ab", "abc"), 7);
+        assert_eq!(fuzzy_match(&SearchTerm::new("ab"), "abc"), 7);
     }
 
     #[test]
     fn non_consecutive_indices_get_no_continuity_bonus() {
         // "ac" in "abc": indices [0,2], prefix 3+1=4, continuity 0
-        assert_eq!(fuzzy_match("ac", "abc"), 5);
+        assert_eq!(fuzzy_match(&SearchTerm::new("ac"), "abc"), 5);
     }
 
     // fuzzy_match - case insensitive
 
     #[test]
     fn case_insensitive() {
-        assert_eq!(fuzzy_match("MAIN", "main"), fuzzy_match("main", "main"));
+        assert_eq!(
+            fuzzy_match(&SearchTerm::new("MAIN"), "main"),
+            fuzzy_match(&SearchTerm::new("main"), "main")
+        );
     }
 
     // fuzzy_match - ranking sanity checks
 
     #[test]
     fn exact_match_beats_scattered() {
-        assert!(fuzzy_match("feat", "feature") > fuzzy_match("feat", "fix-everything"));
+        assert!(
+            fuzzy_match(&SearchTerm::new("feat"), "feature")
+                > fuzzy_match(&SearchTerm::new("feat"), "fix-everything")
+        );
     }
 
     #[test]
     fn prefix_match_beats_suffix() {
-        assert!(fuzzy_match("ma", "main") > fuzzy_match("ma", "xx-main"));
+        assert!(
+            fuzzy_match(&SearchTerm::new("ma"), "main")
+                > fuzzy_match(&SearchTerm::new("ma"), "xx-main")
+        );
     }
 }
