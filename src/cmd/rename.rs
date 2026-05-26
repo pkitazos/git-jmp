@@ -2,7 +2,7 @@ use clap::Parser;
 
 use crate::{
     branch::get_active_worktree, cmd::Run, error::GitJumpError, git::git_command, model::Model,
-    storage::rename_jump_data_branch, types::Head,
+    print::render_successful_rename, storage::rename_jump_data_branch, types::Head,
 };
 
 #[derive(Debug, Parser)]
@@ -37,9 +37,9 @@ impl Run for Rename {
             _ => unreachable!("clap grammar prevents this"),
         };
 
-        rename_sub_command(state, current_name, new_name).map(|res| {
-            println!("{res}");
-        })
+        let (old, new) = rename_sub_command(state, current_name, new_name)?;
+        render_successful_rename(&old, &new);
+        Ok(())
     }
 }
 
@@ -48,7 +48,7 @@ pub fn rename_sub_command(
     state: &Model,
     src: Option<&str>,
     target: &str,
-) -> Result<String, GitJumpError> {
+) -> Result<(String, String), GitJumpError> {
     let src = match src {
         Some(name) => name.to_owned(),
         None => match get_active_worktree(&state.worktrees, &state.active_worktree).head {
@@ -58,9 +58,9 @@ pub fn rename_sub_command(
     };
 
     match git_command("branch", &["--move", &src, target]) {
-        Ok(msg) => {
+        Ok(_) => {
             rename_jump_data_branch(&state.main_worktree.data_file(), &src, target)?;
-            Ok(msg)
+            Ok((src, target.to_owned()))
         }
         Err(err) => Err(GitJumpError::BranchRenaming(err)),
     }

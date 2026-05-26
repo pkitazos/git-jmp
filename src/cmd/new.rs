@@ -30,9 +30,9 @@ impl Run for New {
 /// side-effect: update the JumpData file
 fn new_sub_command(state: &Model, branch_name: &str) -> Result<String, GitJumpError> {
     match git_command("switch", &["--create", branch_name]) {
-        Ok(msg) => {
+        Ok(out) => {
             update_branch_last_switch(&state.main_worktree.data_file(), branch_name, now())?;
-            Ok(msg)
+            Ok(out.stderr)
         }
         Err(err) => Err(GitJumpError::BranchCreation(err)),
     }

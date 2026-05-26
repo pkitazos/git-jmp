@@ -9,13 +9,13 @@ pub struct GitDirs {
 }
 
 pub fn locate_git_repo_dirs() -> Result<GitDirs> {
-    let stdout = git_command("rev-parse", &["--path-format=absolute", "--git-common-dir"])?;
+    let out = git_command("rev-parse", &["--path-format=absolute", "--git-common-dir"])?;
     let main_worktree = MainWorktree {
-        project_root_dir: PathBuf::from(stdout).parent().unwrap().to_path_buf(),
+        project_root_dir: PathBuf::from(out.stdout).parent().unwrap().to_path_buf(),
     };
 
-    let stdout = git_command("rev-parse", &["--show-toplevel"])?;
-    let active_worktree = PathBuf::from(stdout);
+    let out = git_command("rev-parse", &["--show-toplevel"])?;
+    let active_worktree = PathBuf::from(out.stdout);
 
     Ok(GitDirs {
         main_worktree,
@@ -24,9 +24,10 @@ pub fn locate_git_repo_dirs() -> Result<GitDirs> {
 }
 
 pub fn read_raw_git_branches() -> Result<Vec<String>> {
-    let branches = git_command("branch", &["--format=%(refname:short)"])?;
+    let out = git_command("branch", &["--format=%(refname:short)"])?;
 
-    let branches: Vec<String> = branches
+    let branches: Vec<String> = out
+        .stdout
         .lines()
         .filter(|s| !s.is_empty())
         .map(|s| s.to_owned())
@@ -42,9 +43,9 @@ pub struct RawWorktree {
 }
 
 pub fn read_raw_worktrees() -> Result<Vec<RawWorktree>> {
-    let stdout = git_command("worktree", &["list", "--porcelain"])?;
+    let out = git_command("worktree", &["list", "--porcelain"])?;
 
-    stdout
+    out.stdout
         .split("\n\n")
         .filter(|s| !s.is_empty())
         .map(|r| {
@@ -55,8 +56,8 @@ pub fn read_raw_worktrees() -> Result<Vec<RawWorktree>> {
 }
 
 pub fn fetch_remotes() -> Result<Vec<String>> {
-    let remotes = git_command("remote", &[])?;
-    Ok(remotes.lines().map(|r| r.trim().to_string()).collect())
+    let out = git_command("remote", &[])?;
+    Ok(out.stdout.lines().map(|r| r.trim().to_string()).collect())
 }
 
 pub struct RemoteBranch {
@@ -65,9 +66,10 @@ pub struct RemoteBranch {
 }
 
 pub fn fetch_remote_branches(remote: &str) -> Result<Vec<RemoteBranch>> {
-    let branches = git_command("ls-remote", &["--heads", remote])?;
+    let out = git_command("ls-remote", &["--heads", remote])?;
 
-    let branches: Vec<RemoteBranch> = branches
+    let branches: Vec<RemoteBranch> = out
+        .stdout
         .lines()
         .filter_map(|line| line.split('\t').nth(1))
         .map(|r| RemoteBranch {
@@ -80,13 +82,14 @@ pub fn fetch_remote_branches(remote: &str) -> Result<Vec<RemoteBranch>> {
 }
 
 pub fn read_cached_remote_branches() -> Result<HashMap<String, Vec<String>>> {
-    let branches = git_command(
+    let out = git_command(
         "for-each-ref",
         &["--format=%(refname:strip=2)", "refs/remotes/"],
     )?;
 
     let mut remote_branches: HashMap<String, Vec<String>> = HashMap::new();
-    for (r, b) in branches
+    for (r, b) in out
+        .stdout
         .lines()
         .filter(|line| !line.ends_with("/HEAD"))
         .filter_map(|line| line.split_once("/"))
@@ -144,7 +147,12 @@ fn parse_worktree_entry(lines: &[&str]) -> Result<RawWorktree> {
     }
 }
 
-pub fn git_command(sub_cmd: &str, args: &[&str]) -> Result<String> {
+pub struct GitOutput {
+    pub stdout: String,
+    pub stderr: String,
+}
+
+pub fn git_command(sub_cmd: &str, args: &[&str]) -> Result<GitOutput> {
     let mut cmd = Command::new("git");
     cmd.arg(sub_cmd);
     cmd.args(args);
@@ -155,8 +163,14 @@ pub fn git_command(sub_cmd: &str, args: &[&str]) -> Result<String> {
         return Err(anyhow!("{}", String::from_utf8_lossy(&output.stderr)));
     };
 
-    let stdout =
-        String::from_utf8(output.stdout).context("git returned non-UTF-8 bytes on stdout")?;
-
-    Ok(stdout.trim().to_owned())
+    Ok(GitOutput {
+        stdout: String::from_utf8(output.stdout)
+            .context("git returned non-UTF-8 bytes on stdout")?
+            .trim()
+            .to_owned(),
+        stderr: String::from_utf8(output.stderr)
+            .context("git returned non-UTF-8 bytes on stderr")?
+            .trim()
+            .to_owned(),
+    })
 }
