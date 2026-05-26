@@ -9,6 +9,7 @@ A fast, interactive branch switcher for Git with fuzzy search, recency sorting, 
 - **Fuzzy jump:** `git jmp 481` → `git switch feat/issue-481-auth-refactor`
 - **Quick select:** jump to any of your top 10 branches with a single keystroke
 - **Vim mode** optional `Normal`/`Input` mode split + `j`/`k` navigation for the interactive list
+- **Worktree navigation:** with [shell integration](#shell-integration), selecting a worktree drops you straight into its directory
 
 <!-- <p align="center">
   <img src="https://raw.githubusercontent.com/pkitazos/git-jump/main/img/demo.gif" alt="git jmp interactive interface" width="600px" style="border-radius: 5px;" />
@@ -26,6 +27,25 @@ cargo install git-jmp
 brew install git-jmp
 ```-->
 
+## Shell Integration
+
+Once installed, `git jmp` works everywhere with no further setup. However to get even nicer worktree navigation, you need to set up shell integration so that selecting a worktree entry actually moves you into the chosen directory. You can use the `init` subcommand to generate a `jmp` command that wraps `git jmp` and performs the `cd` for you when selecting a worktree.
+
+`jmp` does everything `git jmp` does, so if you want the worktree navigation, you can just use `jmp` right from the start.
+
+```shell
+# zsh
+echo 'eval "$(git-jmp init zsh)"' >> ~/.zshrc
+
+# bash
+echo 'eval "$(git-jmp init bash)"' >> ~/.bashrc
+
+# fish
+echo 'git-jmp init fish | source' >> ~/.config/fish/config.fish
+```
+
+Restart your shell (or re-source the file) and `jmp` is ready. `git jmp` keeps working exactly as before, so you lose nothing by not setting this up, you just don't get the worktree `cd`.
+
 ## Usage
 
 ### Interactive Mode
@@ -39,6 +59,7 @@ git jmp
 - When you first start using `git jmp` branches are sorted alphabetically, but as you switch around your jump history is tracked and the list is sorted with the most recently jumped-to branches near the top.
 - Navigate with arrow keys or, if vim mode is enabled, with `j`/`k`. Hit enter to switch to the selected branch.
 - Start typing to filter the list with a fuzzy search. You don't have to be precise, just type enough to narrow it down.
+- Selecting a worktree shows you where it lives on disk. With [shell integration](#shell-integration) set up, `jmp` takes you there directly instead.
 - Quick-jump to any of your top 10 most recently visited branches using <kbd>Option</kbd>+<kbd>\<number\></kbd> (or <kbd>Alt</kbd>+<kbd>\<number\></kbd> on Linux). You may need to configure your terminal for this to work, see [terminal configuration](docs/terminal-config.md).
 
 ### Direct Jump
@@ -92,6 +113,14 @@ Lists all local branches with the same markers as `git branch` (`*` for current,
 
 Pass `-r` or `--include-remotes` to also list remote branches. This queries your remotes directly rather than relying on your local cache (unlike `git branch -r`).
 
+#### init
+
+```shell
+git jmp init <shell>
+```
+
+Prints the shell integration script for the given shell (`bash`, `zsh`, or `fish`). You don't usually run this directly, you `eval` it from your shell config, see [Shell Integration](#shell-integration).
+
 ## Configuration
 
 You can configure `git-jmp` globally, per-project, or with CLI flags. Configuration is written in TOML:
@@ -130,6 +159,7 @@ The subcommand names have changed: `rename` → `mv`, `delete` → `rm`, `--list
 `git-jmp` is a ground-up Rust rewrite. Beyond the port itself, it includes:
 
 - Worktree-aware interactive UI and branch listing
+- Worktree directory navigation via shell integration
 - Per-project and global TOML configuration
 - Vim mode for the interactive list
 - Configurable quick-select hints
