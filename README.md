@@ -1,4 +1,4 @@
-![git-jump CLI logo](https://raw.githubusercontent.com/pkitazos/git-jump/main/docs/img/banner.png)
+![git-jump CLI logo](https://raw.githubusercontent.com/pkitazos/git-jmp/main/docs/img/banner.png)
 
 # Git-Jmp
 
@@ -12,9 +12,9 @@ A fast, interactive branch switcher for Git with fuzzy search, recency sorting, 
 - **Worktree navigation:** with [shell integration](#shell-integration), selecting a worktree drops you straight into its directory
 - **Tab completions** branch names complete dynamically
 
-<!-- <p align="center">
-  <img src="https://raw.githubusercontent.com/pkitazos/git-jump/main/img/demo.gif" alt="git jmp interactive interface" width="600px" style="border-radius: 5px;" />
-</p> -->
+<p align="center">
+  <img src="https://raw.githubusercontent.com/pkitazos/git-jmp/main/docs/img/demo.gif" alt="git jmp interactive interface" width="600px" style="border-radius: 5px;" />
+</p>
 
 ## Install
 
