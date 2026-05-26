@@ -1,5 +1,6 @@
 use anyhow::Result;
-use clap::Parser;
+use clap::{CommandFactory, Parser};
+use clap_complete::CompleteEnv;
 use std::process::ExitCode;
 
 pub mod branch;
@@ -18,6 +19,8 @@ pub mod version;
 use crate::{cmd::Cli, print::render_git_jump_error};
 
 pub fn main() -> Result<ExitCode> {
+    CompleteEnv::with_factory(Cli::command).complete();
+
     match Cli::parse().run() {
         Ok(()) => Ok(ExitCode::SUCCESS),
         Err(err) => {

@@ -8,3 +8,5 @@ jmp() {
     fi
     rm -f "$tmpfile"
 }
+
+source <(COMPLETE=bash git-jmp)

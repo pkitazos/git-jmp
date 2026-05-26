@@ -1,15 +1,17 @@
 use clap::{Parser, Subcommand};
+use clap_complete::ArgValueCompleter;
 
 use crate::{
     cmd::{
-        delete::Delete, init::Init, interactive::Interactive, jump::JumpTo, list::List, new::New,
-        rename::Rename,
+        completions::branch_completer, delete::Delete, init::Init, interactive::Interactive,
+        jump::JumpTo, list::List, new::New, rename::Rename,
     },
     error::GitJumpError,
     model::Model,
     version::check_pkg_version,
 };
 
+pub mod completions;
 pub mod delete;
 pub mod init;
 pub mod interactive;
@@ -87,6 +89,7 @@ pub struct Cli {
     /// You can use just part of the name, e.g. `git jmp 481` to match
     /// `feat/issue-481-auth-refactor`. Pass `-` to jump back to the previously
     /// checked-out branch.
+    #[arg(add = ArgValueCompleter::new(branch_completer))]
     pub branch: Option<String>,
 
     /// Vim navigation

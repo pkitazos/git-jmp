@@ -10,6 +10,7 @@ A fast, interactive branch switcher for Git with fuzzy search, recency sorting, 
 - **Quick select:** jump to any of your top 10 branches with a single keystroke
 - **Vim mode** optional `Normal`/`Input` mode split + `j`/`k` navigation for the interactive list
 - **Worktree navigation:** with [shell integration](#shell-integration), selecting a worktree drops you straight into its directory
+- **Tab completions** branch names complete dynamically
 
 <!-- <p align="center">
   <img src="https://raw.githubusercontent.com/pkitazos/git-jump/main/img/demo.gif" alt="git jmp interactive interface" width="600px" style="border-radius: 5px;" />
@@ -44,7 +45,9 @@ echo 'eval "$(git-jmp init bash)"' >> ~/.bashrc
 echo 'git-jmp init fish | source' >> ~/.config/fish/config.fish
 ```
 
-Restart your shell (or re-source the file) and `jmp` is ready. `git jmp` keeps working exactly as before, so you lose nothing by not setting this up, you just don't get the worktree `cd`.
+Restart your shell (or re-source the file) and `jmp` is ready. The snippet also registers tab completions, so branch names complete dynamically for `jmp`, `jmp rm`, and `jmp mv`.
+
+`git jmp` keeps working exactly as before, so you lose nothing by not setting this up, you just don't get the worktree `cd` or completions.
 
 ## Usage
 
@@ -164,4 +167,5 @@ The subcommand names have changed: `rename` → `mv`, `delete` → `rm`, `--list
 - Vim mode for the interactive list
 - Configurable quick-select hints
 - Remote branch listing via `ls -r`
+- Tab completions for branch names (bash, zsh, fish)
 - Full cursor navigation in the search input (word jump, Home/End, kill line)
