@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shell integration via `git jmp init <shell>`. Prints a `jmp` wrapper function for your shell (bash, zsh, or fish). With the wrapper sourced, selecting a branch checked out in another worktree automatically `cd`s into that worktree instead of just printing the path.
 - Tab completions for bash, zsh, and fish. Branch names are completed dynamically for the direct `jmp` invocation and the `rm` and `mv` subcommands.
 - Configuration system with global (`~/.config/git-jmp/config.toml`) and per-repo (`.jump/config.toml`) config files. Local config overrides global field-by-field.
-- Vim mode (`--vim-mode` flag or `vim_mode` config option). Adds Normal/Input mode split with `j`/`k` navigation and `q` to quit.
+- Vim mode (`--vim-mode` flag or `vim_mode` config option). Adds Normal/Input mode split with vim-style navigation (`j`/`k` with count prefixes, `g`/`G` to jump to top/bottom, `q` to quit).
 - Remote branch support in interactive mode via `-r`/`--include-remotes` flag or the `sources` config option. Remotes can also be listed with `git jmp ls -r`.
 - Force-delete flag: `git jmp rm -f` / `--force` for branches not fully merged.
 - Quick-select hint style is configurable (`quick_select_hint`: `"full"`, `"compact"`, or `"hidden"`).

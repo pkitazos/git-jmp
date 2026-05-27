@@ -47,6 +47,7 @@ pub struct InteractiveApp {
     character_index: usize,
     input_mode: InputMode,
     alert: String,
+    vim_count: usize,
 
     rows: Vec<Row>,
     // view state (technically a copy of the source data)
@@ -185,6 +186,7 @@ impl InteractiveApp {
 
             character_index: 0,
             alert: String::from(""),
+            vim_count: 0,
 
             rows: Self::make_rows(active_head.to_owned(), branches, remote_branches, worktrees),
 
@@ -352,14 +354,45 @@ impl InteractiveApp {
                         }
 
                         (KeyCode::Char('i'), KeyModifiers::NONE) => {
-                            self.input_mode = InputMode::Editing
+                            self.input_mode = InputMode::Editing;
+                            self.vim_count = 0;
+                        }
+
+                        (KeyCode::Char(c @ '1'..='9'), KeyModifiers::NONE) => {
+                            self.vim_count = self
+                                .vim_count
+                                .saturating_mul(10) // every time a new character is pressed we push everything up by 10
+                                .saturating_add(c as usize - '0' as usize);
+                        }
+                        (KeyCode::Char('0'), KeyModifiers::NONE) if self.vim_count > 0 => {
+                            self.vim_count = self.vim_count.saturating_mul(10);
                         }
 
                         (KeyCode::Char('j'), KeyModifiers::NONE)
-                        | (KeyCode::Down, KeyModifiers::NONE) => list_state.select_next(),
+                        | (KeyCode::Down, KeyModifiers::NONE) => {
+                            for _ in 0..self.vim_count.max(1) {
+                                list_state.select_next();
+                            }
+                            self.vim_count = 0;
+                        }
 
                         (KeyCode::Char('k'), KeyModifiers::NONE)
-                        | (KeyCode::Up, KeyModifiers::NONE) => list_state.select_previous(),
+                        | (KeyCode::Up, KeyModifiers::NONE) => {
+                            for _ in 0..self.vim_count.max(1) {
+                                list_state.select_previous();
+                            }
+                            self.vim_count = 0;
+                        }
+
+                        (KeyCode::Char('G'), KeyModifiers::SHIFT) => {
+                            list_state.select_last();
+                            self.vim_count = 0;
+                        }
+
+                        (KeyCode::Char('g'), KeyModifiers::NONE) => {
+                            list_state.select_first();
+                            self.vim_count = 0;
+                        }
 
                         (KeyCode::Enter, KeyModifiers::NONE) => {
                             return self.make_selection(&list_state);
@@ -371,7 +404,13 @@ impl InteractiveApp {
                             }
                         }
 
-                        _ => {}
+                        (KeyCode::Esc, KeyModifiers::NONE) => {
+                            self.vim_count = 0;
+                        }
+
+                        _ => {
+                            self.vim_count = 0;
+                        }
                     },
 
                     InputMode::Editing if key.kind == KeyEventKind::Press => {

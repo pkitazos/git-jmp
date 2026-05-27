@@ -21,9 +21,9 @@ A fuzzy, recency-sorted interactive branch switcher for Git.
 - **Recency sorting:** your most recently used branches float to the top
 - **Fuzzy jump:** `jmp 481` → `git switch feat/issue-481-auth-refactor`
 - **Quick select:** jump to any of your top 10 branches with a single keystroke
-- **Vim mode** optional `Normal`/`Input` mode split + `j`/`k` navigation for the interactive list
+- **Vim mode:** optional vim-style navigation for the interactive list
 - **Worktree navigation:** with [shell integration](#shell-integration), selecting a worktree drops you straight into its directory
-- **Tab completions** for branch names (bash, zsh, fish)
+- **Tab completions:** branch name completions for bash, zsh, and fish via shell integration
 
 <p align="center">
   <img 
@@ -79,7 +79,7 @@ jmp [--vim-mode] [-r]
 ```
 
 - When you first start using `jmp` branches are sorted alphabetically, but as you switch around your jump history is tracked and the list is sorted with the most recently jumped-to branches near the top.
-- Navigate with arrow keys or, if vim mode is enabled, with `j`/`k`. Hit enter to switch to the selected branch.
+- Navigate with arrow keys or, if vim mode is enabled, with vim-style motions (`j`/`k`, count prefixes like `3j`, `g`/`G` to jump to top/bottom). Hit enter to switch to the selected branch.
 - Start typing to filter the list with a fuzzy search. You don't have to be precise, just type enough to narrow it down.
 - Selecting a worktree shows you where it lives on disk. With shell integration set up, `jmp` takes you there directly instead.
 - Quick-jump to any of your top 10 most recently visited branches using <kbd>Option</kbd>+<kbd>\<number\></kbd> (or <kbd>Alt</kbd>+<kbd>\<number\></kbd> on Linux). You may need to configure your terminal for this to work, see [terminal configuration](docs/terminal-config.md).
@@ -157,7 +157,7 @@ quick_select_hint = "full" # or "compact" or "hidden"
 ```
 
 - **`auto_check_updates`** - whether `git-jmp` checks for new versions on startup. Disable this if you'd rather skip the network trip.
-- **`vim_mode`** - splits the interactive list into `Normal` mode (navigate) and `Input` mode (type to search) and allows you to move up and down the list using `j`/`k`.
+- **`vim_mode`** - splits the interactive list into `Normal` mode (navigate) and `Input` mode (type to search) with vim-style motions.
 - **`quick_select_hint`** - controls the hint shown on the search input line: `"full"` is the verbose default, `"compact"` shows just the modifier key and number, `"hidden"` shows nothing.
 
 Global config location depends on your OS:
