@@ -5,6 +5,7 @@ edition = "2024"
 description = "A fast, interactive Git branch switcher with fuzzy search and recency sorting"
 license = "MIT"
 repository = "https://github.com/pkitazos/git-jmp"
+homepage = "https://github.com/pkitazos/git-jmp"
 readme = "README.md"
 keywords = ["git", "branch", "cli", "tui"]
 categories = ["command-line-utilities", "development-tools"]
@@ -22,3 +23,8 @@ serde_json = "1.0.149"
 thiserror = "2.0.18"
 toml = "1.1.2"
 ureq = { version = "3", features = ["json"] }
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
