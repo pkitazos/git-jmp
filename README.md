@@ -35,15 +35,25 @@ A fuzzy, recency-sorted interactive branch switcher for Git.
 
 ## Install
 
+### Homebrew
+
+```shell
+brew install pkitazos/tap/git-jmp
+```
+
+### Cargo
+
 ```shell
 cargo install git-jmp
 ```
 
-<!--or using Homebrew
+### Shell script (Linux/macOS)
 
 ```shell
-brew install git-jmp
-```-->
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/pkitazos/git-jmp/releases/latest/download/git-jmp-installer.sh | sh
+```
+
+See the [releases page](https://github.com/pkitazos/git-jmp/releases) for other options including Windows.
 
 ## Shell Integration
 
