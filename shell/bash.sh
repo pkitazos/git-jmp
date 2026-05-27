@@ -10,3 +10,4 @@ jmp() {
 }
 
 source <(COMPLETE=bash git-jmp)
+complete -F _clap_complete_git_jmp jmp

@@ -10,3 +10,4 @@ function jmp
 end
 
 COMPLETE=fish git-jmp | source
+complete -c jmp --wraps git-jmp

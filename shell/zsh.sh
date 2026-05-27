@@ -10,3 +10,4 @@ jmp() {
 }
 
 source <(COMPLETE=zsh git-jmp)
+compdef _clap_dynamic_completer_git_jmp jmp
