@@ -10,7 +10,7 @@ use super::theme;
 use crate::{
     config::QuickSelectHint,
     print::INDEX_PADD,
-    tui::{InputMode, InteractiveApp, Row},
+    tui::{InputMode, InteractiveApp, Row, SearchView},
     types::{Branch, Head, Worktree},
 };
 
@@ -20,7 +20,7 @@ impl InteractiveApp {
 
         let constraints: Vec<Constraint> = vec![
             Constraint::Length(1),
-            Constraint::Length(rows.len() as u16),
+            Constraint::Fill(1),
             Constraint::Length(1),
         ];
 
@@ -106,14 +106,31 @@ impl InteractiveApp {
             InputMode::Editing => "[INPUT]",
         };
 
+        let total = self.rows.len();
+        let count = match &self.view {
+            SearchView::Filtered { list, .. } => format!("{}/{total}", list.len()),
+            SearchView::Idle => total.to_string(),
+        };
+
+        let status_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Fill(1),
+                Constraint::Length(count.len() as u16 + 1),
+            ]);
+
+        let [left, right] = area.layout(&status_layout);
+
         frame.render_widget(
             Line::from(vec![
                 Span::from(format!("{INDEX_PADD}{mode}")),
                 Span::from(self.alert.to_string()),
             ])
             .fg(theme::STATUS_BAR),
-            area,
+            left,
         );
+
+        frame.render_widget(Text::from(format!("{count} ")).fg(theme::STATUS_BAR), right);
     }
 
     fn render_scrollable_list(
