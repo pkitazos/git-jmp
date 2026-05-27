@@ -1,8 +1,21 @@
-![git-jump CLI logo](https://raw.githubusercontent.com/pkitazos/git-jmp/main/docs/img/banner.png)
+<p align="center">
+  <img src="https://raw.githubusercontent.com/pkitazos/git-jmp/main/docs/img/banner.png" alt="git-jmp" />
+</p>
 
-# Git-Jmp
+<div align="center">
 
-A fast, interactive branch switcher for Git with fuzzy search, recency sorting, and worktree support.
+# git-jmp
+
+A fuzzy, recency-sorted interactive branch switcher for Git.
+
+<a href="#install">Install</a> · 
+<a href="#usage">Usage</a> · 
+<a href="#shell-integration">Shell Integration</a> · 
+<a href="#configuration">Configuration</a>
+
+</div>
+
+<hr/>
 
 - **Interactive UI** to view and switch between branches and worktrees
 - **Recency sorting:** your most recently used branches float to the top
@@ -54,6 +67,8 @@ echo 'git-jmp init fish | source' >> ~/.config/fish/config.fish
 `jmp` is a thin wrapper around `git jmp` that adds worktree `cd` and tab completions. `git jmp` keeps working exactly as before, so you can skip this step if you prefer, you just won't get completions or automatic directory switching.
 
 ## Usage
+
+> All examples below use `jmp` (the shell wrapper). You can substitute `git jmp` everywhere if you prefer not to set up shell integration, you just won't get worktree `cd` or tab completions.
 
 ### Interactive Mode
 
@@ -119,8 +134,6 @@ jmp ls [-r]
 Lists all local branches with the same markers as `git branch` (`*` for current, `+` for worktree branches). The only difference is that when piped, the output is plain branch names with no prefixes (unlike `git branch`), just one branch per line, ready for scripting!
 
 Pass `-r` or `--include-remotes` to also list remote branches. This queries your remotes directly rather than relying on your local cache (unlike `git branch -r`).
-
-> All examples use `jmp` (the shell wrapper). You can substitute `git jmp` everywhere if you prefer not to set up shell integration.
 
 #### init
 
