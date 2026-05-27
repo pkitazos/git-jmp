@@ -1,8 +1,13 @@
 [package]
 name = "git-jmp"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
-description = "Git branch switcher"
+description = "A fast, interactive Git branch switcher with fuzzy search and recency sorting"
+license = "MIT"
+repository = "https://github.com/pkitazos/git-jmp"
+readme = "README.md"
+keywords = ["git", "branch", "cli", "tui"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 anyhow = "1.0.102"
@@ -16,4 +21,4 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 thiserror = "2.0.18"
 toml = "1.1.2"
-ureq = { version = "3",  features = [ "json"] }
+ureq = { version = "3", features = ["json"] }
