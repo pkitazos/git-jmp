@@ -6,14 +6,18 @@ A fast, interactive branch switcher for Git with fuzzy search, recency sorting, 
 
 - **Interactive UI** to view and switch between branches and worktrees
 - **Recency sorting:** your most recently used branches float to the top
-- **Fuzzy jump:** `git jmp 481` → `git switch feat/issue-481-auth-refactor`
+- **Fuzzy jump:** `jmp 481` → `git switch feat/issue-481-auth-refactor`
 - **Quick select:** jump to any of your top 10 branches with a single keystroke
 - **Vim mode** optional `Normal`/`Input` mode split + `j`/`k` navigation for the interactive list
 - **Worktree navigation:** with [shell integration](#shell-integration), selecting a worktree drops you straight into its directory
-- **Tab completions** branch names complete dynamically
+- **Tab completions** for branch names (bash, zsh, fish)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pkitazos/git-jmp/main/docs/img/demo.gif" alt="git jmp interactive interface" width="600px" style="border-radius: 5px;" />
+  <img 
+      src="https://raw.githubusercontent.com/pkitazos/git-jmp/main/docs/img/demo.gif" 
+      alt="git jmp interactive interface"
+      width="1000px"
+  />
 </p>
 
 ## Install
@@ -45,9 +49,9 @@ echo 'eval "$(git-jmp init bash)"' >> ~/.bashrc
 echo 'git-jmp init fish | source' >> ~/.config/fish/config.fish
 ```
 
-Restart your shell (or re-source the file) and `jmp` is ready. The snippet also registers tab completions, so branch names complete dynamically for `jmp`, `jmp rm`, and `jmp mv`.
+ Restart your shell (or re-source the file) and `jmp` is ready.
 
-`git jmp` keeps working exactly as before, so you lose nothing by not setting this up, you just don't get the worktree `cd` or completions.
+`jmp` is a thin wrapper around `git jmp` that adds worktree `cd` and tab completions. `git jmp` keeps working exactly as before, so you can skip this step if you prefer, you just won't get completions or automatic directory switching.
 
 ## Usage
 
@@ -56,28 +60,28 @@ Restart your shell (or re-source the file) and `jmp` is ready. The snippet also 
 Run without arguments to launch the interactive UI:
 
 ```shell
-git jmp
+jmp [--vim-mode] [-r]
 ```
 
-- When you first start using `git jmp` branches are sorted alphabetically, but as you switch around your jump history is tracked and the list is sorted with the most recently jumped-to branches near the top.
+- When you first start using `jmp` branches are sorted alphabetically, but as you switch around your jump history is tracked and the list is sorted with the most recently jumped-to branches near the top.
 - Navigate with arrow keys or, if vim mode is enabled, with `j`/`k`. Hit enter to switch to the selected branch.
 - Start typing to filter the list with a fuzzy search. You don't have to be precise, just type enough to narrow it down.
-- Selecting a worktree shows you where it lives on disk. With [shell integration](#shell-integration) set up, `jmp` takes you there directly instead.
+- Selecting a worktree shows you where it lives on disk. With shell integration set up, `jmp` takes you there directly instead.
 - Quick-jump to any of your top 10 most recently visited branches using <kbd>Option</kbd>+<kbd>\<number\></kbd> (or <kbd>Alt</kbd>+<kbd>\<number\></kbd> on Linux). You may need to configure your terminal for this to work, see [terminal configuration](docs/terminal-config.md).
 
 ### Direct Jump
 
-Jump to a branch without opening the interactive UI. You can use the exact name or a partial match. `git-jmp` checks for an exact match first, then falls back to the best fuzzy match.
+Jump to a branch without opening the interactive UI. You can use the exact name or a partial match. `jmp` checks for an exact match first, then falls back to the best fuzzy match.
 
 ```shell
-git jmp <branch name or fuzzy match>
+jmp <branch name or fuzzy match>
 ```
 
 If you use feature branches with unique issue numbers, this makes switching between them very quick:
 
 ```shell
-git jmp 481     # switches to feat/issue-481-auth-refactor
-git jmp signup  # switches to feat/user-signup-flow
+jmp 481     # switches to feat/issue-481-auth-refactor
+jmp signup  # switches to feat/user-signup-flow
 ```
 
 ### Subcommands
@@ -85,7 +89,7 @@ git jmp signup  # switches to feat/user-signup-flow
 #### new
 
 ```shell
-git jmp new <branch name>
+jmp new <branch name>
 ```
 
 Creates and switches to a new branch (`git switch --create` under the hood) and records it as the most recently visited branch.
@@ -93,7 +97,7 @@ Creates and switches to a new branch (`git switch --create` under the hood) and 
 #### mv
 
 ```shell
-git jmp mv [<old name>] <new name>
+jmp mv [<old name>] <new name>
 ```
 
 Renames a branch (`git branch --move` under the hood) and updates the jump data. Omit `<old name>` to rename the current branch.
@@ -101,7 +105,7 @@ Renames a branch (`git branch --move` under the hood) and updates the jump data.
 #### rm
 
 ```shell
-git jmp rm [-f] <branch name> [<branch name>, ...]
+jmp rm [-f] <branch name> [<branch name>, ...]
 ```
 
 Deletes one or more branches (`git branch -d` under the hood) and removes them from the jump data. Pass `-f` or `--force` for branches that haven't been fully merged (equivalent to `git branch -D`).
@@ -109,12 +113,14 @@ Deletes one or more branches (`git branch -d` under the hood) and removes them f
 #### ls
 
 ```shell
-git jmp ls
+jmp ls [-r]
 ```
 
 Lists all local branches with the same markers as `git branch` (`*` for current, `+` for worktree branches). The only difference is that when piped, the output is plain branch names with no prefixes (unlike `git branch`), just one branch per line, ready for scripting!
 
 Pass `-r` or `--include-remotes` to also list remote branches. This queries your remotes directly rather than relying on your local cache (unlike `git branch -r`).
+
+> All examples use `jmp` (the shell wrapper). You can substitute `git jmp` everywhere if you prefer not to set up shell integration.
 
 #### init
 
@@ -143,11 +149,11 @@ quick_select_hint = "full" # or "compact" or "hidden"
 
 Global config location depends on your OS:
 
-| OS      | Path                                                                      |
-| ------- | ------------------------------------------------------------------------- |
+| OS      | Path                                                                        |
+| ------- | --------------------------------------------------------------------------- |
 | Linux   | `~/.config/git-jmp/config.toml` (or `$XDG_CONFIG_HOME/git-jmp/config.toml`) |
-| macOS   | `~/Library/Application Support/git-jmp/config.toml`                       |
-| Windows | `%APPDATA%\git-jmp\config.toml`                                           |
+| macOS   | `~/Library/Application Support/git-jmp/config.toml`                         |
+| Windows | `%APPDATA%\git-jmp\config.toml`                                             |
 
 Local config goes in `.jump/config.toml` at the root of your repository. Local values override global ones field by field, so you don't need to specify every field every time.
 
