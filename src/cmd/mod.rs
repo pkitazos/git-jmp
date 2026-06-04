@@ -115,6 +115,7 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Commands {
     Ls(List),
+    #[command(aliases = ["-c"])]
     New(New),
     Rm(Delete),
     Mv(Rename),
